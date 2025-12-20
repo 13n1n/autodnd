@@ -1,5 +1,5 @@
 from waitress import serve
 
-from .game import app
+from .api import app
 
 serve(app, port=8996)

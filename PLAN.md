@@ -381,21 +381,21 @@ class StateSnapshot(BaseModel):
    - [v] Add JSON serialization support for all models
 
 3. **Core Game Engine**
-   - [ ] Implement `GameEngine` class (state management, action processing)
-   - [ ] Implement `ActionValidator` (rule-based validation)
-   - [ ] Implement `TimeManager` (half-day increments)
-   - [ ] Implement `InventoryManager` (bags, equipment slots, item placement)
-   - [ ] Implement `StatCalculator` (base + items + buffs/debuffs)
-   - [ ] Implement `DiceRoller` (d20, d6, modifiers)
-   - [ ] Implement `CombatSystem` (turn-based combat)
+   - [v] Implement `GameEngine` class (state management, action processing)
+   - [v] Implement `ActionValidator` (rule-based validation)
+   - [v] Implement `TimeManager` (half-day increments)
+   - [v] Implement `InventoryManager` (bags, equipment slots, item placement)
+   - [v] Implement `StatCalculator` (base + items + buffs/debuffs)
+   - [v] Implement `DiceRoller` (d20, d6, modifiers)
+   - [v] Implement `CombatSystem` (turn-based combat)
 
 4. **State History System**
-   - [ ] Implement state snapshot creation (complete GameState copy)
-   - [ ] Implement history storage (in-memory, later persistent)
-   - [ ] Implement `revert_to()` method (restore complete state from snapshot)
-   - [ ] Add snapshot triggers (combat start, level-up, save points)
-   - [ ] Ensure snapshots are self-contained (no external dependencies)
-   - [ ] Test reversion restores all players, items, messages, time, map state
+   - [v] Implement state snapshot creation (complete GameState copy)
+   - [v] Implement history storage (in-memory, later persistent)
+   - [v] Implement `revert_to()` method (restore complete state from snapshot)
+   - [v] Add snapshot triggers (combat start, level-up, save points)
+   - [v] Ensure snapshots are self-contained (no external dependencies)
+   - [v] Test reversion restores all players, items, messages, time, map state
 
 ### Phase 2: Security & Input Sanitization
 
@@ -422,20 +422,20 @@ class StateSnapshot(BaseModel):
 ### Phase 3: LangChain Agent System
 
 8. **Tool Definitions**
-   - [ ] Create `RollDiceTool` (LangChain `StructuredTool`)
-   - [ ] Create `QueryLoreTool` (RAG integration)
-   - [ ] Create `ValidateActionTool` (rule validation)
-   - [ ] Create `GetPlayerStatsTool`
-   - [ ] Create `GetInventoryTool`
-   - [ ] Create `GetMapStateTool`
-   - [ ] Create `CalculateDamageTool` (combat)
+   - [v] Create `RollDiceTool` (LangChain `StructuredTool`)
+   - [ ] Create `QueryLoreTool` (RAG integration) - Skipped for MVP
+   - [ ] Create `ValidateActionTool` (rule validation) - Using ActionValidator directly
+   - [v] Create `GetPlayerStatsTool`
+   - [v] Create `GetInventoryTool`
+   - [v] Create `GetMapStateTool`
+   - [ ] Create `CalculateDamageTool` (combat) - Can be added later
 
 9. **Game Master Agent**
-   - [ ] Setup LangChain `AgentExecutor` for Game Master
-   - [ ] Configure LLM (OpenAI/Anthropic) with structured output
-   - [ ] Create system prompt for Game Master role
-   - [ ] Wire tools to agent
-   - [ ] Implement agent response parsing
+   - [v] Setup LangChain `AgentExecutor` for Game Master
+   - [v] Configure LLM (OpenAI/Ollama) with structured output
+   - [v] Create system prompt for Game Master role
+   - [v] Wire tools to agent
+   - [v] Implement agent response parsing
 
 10. **NPC Agent**
     - [ ] Setup separate `AgentExecutor` for NPCs
@@ -508,23 +508,25 @@ class StateSnapshot(BaseModel):
 ### Phase 6: API & Frontend
 
 20. **Flask API Endpoints**
-    - [ ] `POST /api/game/start` - Initialize new game
-    - [ ] `POST /api/game/action` - Submit player action (with sanitization)
-    - [ ] `GET /api/game/state` - Get current state (sanitized for frontend)
-    - [ ] `POST /api/game/revert` - Revert to snapshot
-    - [ ] `GET /api/game/history` - List snapshots
+    - [v] `POST /api/game/start` - Initialize new game
+    - [v] `POST /api/game/action` - Submit player action (with sanitization)
+    - [v] `GET /api/game/state` - Get current state (sanitized for frontend)
+    - [v] `POST /api/game/revert` - Revert to snapshot
+    - [v] `GET /api/game/history` - List snapshots
     - [ ] `POST /api/game/image` - Generate scene image (future)
 
 21. **State Serialization for API**
-    - [ ] Create API-safe state serializer (exclude internal data)
-    - [ ] Implement JSON response formatting
-    - [ ] Add error response handling
+    - [v] Create API-safe state serializer (exclude internal data)
+    - [v] Implement JSON response formatting
+    - [v] Add error response handling
 
 22. **Frontend Integration**
-    - [ ] Create HTML frontend (or Telegram bot structure)
-    - [ ] Implement action submission UI
-    - [ ] Display game state (map, inventory, stats)
-    - [ ] Add history/revert UI
+    - [v] Create HTML frontend (or Telegram bot structure)
+    - [v] Implement action submission UI
+    - [v] Display game state (map, inventory, stats) - Chat interface with messages
+    - [v] Add history/revert UI - API endpoints ready
+    - [v] Chat-like UI with message type styling (master large, NPC quoted, tool spoilered)
+    - [v] LLM configuration modal with hot-reload (OpenAI/Ollama switchable)
 
 ### Phase 7: Testing & Refinement
 
