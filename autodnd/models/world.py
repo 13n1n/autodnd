@@ -1,0 +1,79 @@
+"""World map and coordinate models."""
+
+from enum import Enum
+from typing import Optional
+
+from pydantic import BaseModel, Field
+
+
+class TerrainType(str, Enum):
+    """Terrain types for hex cells."""
+
+    PLAINS = "plains"
+    FOREST = "forest"
+    MOUNTAIN = "mountain"
+    WATER = "water"
+    DESERT = "desert"
+    SWAMP = "swamp"
+    ROAD = "road"
+    CITY = "city"
+    DUNGEON = "dungeon"
+
+
+class HexCoordinate(BaseModel):
+    """Hex grid coordinates (axial coordinate system)."""
+
+    q: int = Field(description="Q coordinate (axial)")
+    r: int = Field(description="R coordinate (axial)")
+
+    class Config:
+        frozen = True  # Immutable model
+
+
+class HexCell(BaseModel):
+    """Individual map cell."""
+
+    coordinates: HexCoordinate = Field(description="Hex coordinates")
+    terrain: TerrainType = Field(description="Terrain type")
+    contents: list[str] = Field(
+        default_factory=list, description="Contents of cell (NPCs, items, etc.)"
+    )
+    discovered: bool = Field(default=False, description="Whether cell has been discovered")
+    description: Optional[str] = Field(default=None, description="Cell description")
+
+    class Config:
+        frozen = True  # Immutable model
+
+
+class HexMap(BaseModel):
+    """Complete world map with all cells."""
+
+    cells: dict[tuple[int, int], HexCell] = Field(
+        default_factory=dict, description="Map cells indexed by (q, r) coordinates"
+    )
+
+    class Config:
+        frozen = True  # Immutable model
+
+    def get_cell(self, coordinate: HexCoordinate) -> Optional[HexCell]:
+        """Get cell at given coordinate."""
+        key = (coordinate.q, coordinate.r)
+        return self.cells.get(key)
+
+    def set_cell(self, cell: HexCell) -> "HexMap":
+        """Create new map with updated cell (immutable update)."""
+        new_cells = self.cells.copy()
+        new_cells[(cell.coordinates.q, cell.coordinates.r)] = cell
+        return self.model_copy(update={"cells": new_cells})
+
+
+class TimeState(BaseModel):
+    """Game time tracking."""
+
+    current_day: int = Field(ge=1, default=1, description="Current day number")
+    half_day_increment: int = Field(ge=0, default=0, description="Half-day increments within day (0 or 1)")
+    total_time_elapsed: int = Field(ge=0, default=0, description="Total half-days elapsed")
+
+    class Config:
+        frozen = True  # Immutable model
+

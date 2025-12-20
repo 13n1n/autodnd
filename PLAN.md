@@ -348,27 +348,27 @@ class StateSnapshot(BaseModel):
 ### Phase 1: Foundation & Core Engine
 
 1. **Setup Project Structure**
-   - [ ] Create package structure: `autodnd/engine/`, `autodnd/agents/`, `autodnd/models/`, `autodnd/security/`
-   - [ ] Add dependencies: `pydantic`, `langchain-openai` (or `langchain-anthropic`), `langchain-community`, `langchain-core`
-   - [ ] Setup type checking (mypy) and linting
+   - [v] Create package structure: `autodnd/engine/`, `autodnd/agents/`, `autodnd/models/`, `autodnd/security/`
+   - [v] Add dependencies: `pydantic`, `langchain-openai` (or `langchain-anthropic`), `langchain-community`, `langchain-core`
+   - [v] Setup type checking (mypy) and linting
 
 2. **Data Models (Pydantic - Comprehensive State)**
-   - [ ] Define `PlayerStats` model (Health, Strength, Dexterity, Intelligence, Charisma)
-   - [ ] Define `Item` model (complete: tags, properties, stat modifiers, location tracking)
-   - [ ] Define `Bag` model (size, slots, contents)
-   - [ ] Define `PlayerInventory` model (all bags, all equipped items, complete item list)
-   - [ ] Define `Player` model (complete: base/current stats, level, experience, inventory, position, status)
-   - [ ] Define `HexCoordinate` model (q, r coordinates)
-   - [ ] Define `HexCell` model (terrain, coordinates, contents, discovered state)
-   - [ ] Define `HexMap` model (complete map with all cells)
-   - [ ] Define `TimeState` model (day, half-day increments, total time)
-   - [ ] Define `Message` model (source, content, type, context, metadata)
-   - [ ] Define `MessageHistory` model (ordered list of all messages)
-   - [ ] Define `Action` model (type enum, parameters dict, validation)
-   - [ ] Define `CombatState` model (if needed for combat tracking)
-   - [ ] Define `Effect` model (buffs/debuffs with duration and modifiers)
-   - [ ] Define `GameMetadata` model (settings, difficulty, etc.)
-   - [ ] Define `GameState` model (LARGE, comprehensive, immutable, frozen)
+   - [v] Define `PlayerStats` model (Health, Strength, Dexterity, Intelligence, Charisma)
+   - [v] Define `Item` model (complete: tags, properties, stat modifiers, location tracking)
+   - [v] Define `Bag` model (size, slots, contents)
+   - [v] Define `PlayerInventory` model (all bags, all equipped items, complete item list)
+   - [v] Define `Player` model (complete: base/current stats, level, experience, inventory, position, status)
+   - [v] Define `HexCoordinate` model (q, r coordinates)
+   - [v] Define `HexCell` model (terrain, coordinates, contents, discovered state)
+   - [v] Define `HexMap` model (complete map with all cells)
+   - [v] Define `TimeState` model (day, half-day increments, total time)
+   - [v] Define `Message` model (source, content, type, context, metadata)
+   - [v] Define `MessageHistory` model (ordered list of all messages)
+   - [v] Define `Action` model (type enum, parameters dict, validation)
+   - [v] Define `CombatState` model (if needed for combat tracking)
+   - [v] Define `Effect` model (buffs/debuffs with duration and modifiers)
+   - [v] Define `GameMetadata` model (settings, difficulty, etc.)
+   - [v] Define `GameState` model (LARGE, comprehensive, immutable, frozen)
      - Include ALL players with ALL stats and ALL items
      - Include ALL messages (player, master, NPC, tool, system)
      - Include complete world map
@@ -376,9 +376,9 @@ class StateSnapshot(BaseModel):
      - Include active effects
      - Include combat state if active
      - Self-contained for easy reversion
-   - [ ] Define `StateSnapshot` model (complete GameState copy + metadata)
-   - [ ] Ensure all models are immutable Pydantic models with proper validation
-   - [ ] Add JSON serialization support for all models
+   - [v] Define `StateSnapshot` model (complete GameState copy + metadata)
+   - [v] Ensure all models are immutable Pydantic models with proper validation
+   - [v] Add JSON serialization support for all models
 
 3. **Core Game Engine**
    - [ ] Implement `GameEngine` class (state management, action processing)
