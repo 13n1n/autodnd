@@ -400,24 +400,24 @@ class StateSnapshot(BaseModel):
 ### Phase 2: Security & Input Sanitization
 
 5. **Input Sanitization Layer**
-   - [ ] Create `InputSanitizer` class
-   - [ ] Implement special token stripping/escaping
-   - [ ] Implement action type whitelist validation
-   - [ ] Implement length limits and encoding normalization
-   - [ ] Add unit tests for injection attempts
+   - [v] Create `InputSanitizer` class
+   - [v] Implement special token stripping/escaping
+   - [v] Implement action type whitelist validation
+   - [v] Implement length limits and encoding normalization
+   - [v] Add unit tests for injection attempts
 
 6. **Prompt Security**
-   - [ ] Create `PromptBuilder` class using LangChain `PromptTemplate`
-   - [ ] Separate system prompts from user content
-   - [ ] Implement structured output parsers (Pydantic)
-   - [ ] Create prompt templates for each agent type
-   - [ ] Add prompt injection test cases
+   - [v] Create `PromptBuilder` class using LangChain `PromptTemplate`
+   - [v] Separate system prompts from user content
+   - [v] Implement structured output parsers (Pydantic)
+   - [ ] Create prompt templates for each agent type (SecurityAgent done, others can be added as needed)
+   - [v] Add prompt injection test cases
 
 7. **Agent Output Validation**
-   - [ ] Create `OutputValidator` class
-   - [ ] Validate all agent outputs against Pydantic schemas
-   - [ ] Implement rejection handling for invalid outputs
-   - [ ] Add logging for suspicious patterns
+   - [v] Create `OutputValidator` class
+   - [v] Validate all agent outputs against Pydantic schemas
+   - [v] Implement rejection handling for invalid outputs
+   - [v] Add logging for suspicious patterns
 
 ### Phase 3: LangChain Agent System
 
