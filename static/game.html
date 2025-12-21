@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoDnD - Game</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #1e1e2e 0%, #2d2d44 100%);
+            color: #e0e0e0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 1rem 2rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+            color: #fff;
+        }
+
+        .header a {
+            color: #e0e0e0;
+            text-decoration: none;
+            margin-right: 1rem;
+        }
+
+        .header a:hover {
+            color: #fff;
+        }
+
+        .header button {
+            background: #4a90e2;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+
+        .header button:hover {
+            background: #357abd;
+        }
+
+        .chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            padding: 2rem;
+            max-width: 1200px;
+            width: 100%;
+            margin: 0 auto;
+        }
+
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            scroll-behavior: smooth;
+        }
+
+        .messages::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .messages::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .messages::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+        }
+
+        .message {
+            padding: 1rem;
+            border-radius: 8px;
+            max-width: 80%;
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.player {
+            background: rgba(74, 144, 226, 0.2);
+            border-left: 3px solid #4a90e2;
+            align-self: flex-end;
+        }
+
+        .message.master {
+            background: rgba(200, 180, 100, 0.2);
+            border-left: 3px solid #c8b464;
+            font-size: 1.05em;
+            line-height: 1.6;
+            align-self: flex-start;
+        }
+
+        .message.npc {
+            background: rgba(100, 150, 200, 0.15);
+            border-left: 3px solid #6496c8;
+            align-self: flex-start;
+            font-style: italic;
+        }
+
+        .message.npc::before {
+            content: '"';
+            font-size: 1.5em;
+            color: rgba(255, 255, 255, 0.5);
+            margin-right: 0.25rem;
+        }
+
+        .message.npc::after {
+            content: '"';
+            font-size: 1.5em;
+            color: rgba(255, 255, 255, 0.5);
+            margin-left: 0.25rem;
+        }
+
+        .message.tool {
+            background: rgba(100, 100, 100, 0.15);
+            border-left: 3px solid #646464;
+            align-self: flex-start;
+            font-size: 0.9em;
+        }
+
+        .message.system {
+            background: rgba(150, 150, 150, 0.1);
+            border-left: 3px solid #969696;
+            align-self: center;
+            font-size: 0.85em;
+            font-style: italic;
+        }
+
+        .message-header {
+            font-size: 0.85em;
+            opacity: 0.7;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+
+        .message-content {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .details-toggle {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: #e0e0e0;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8em;
+            margin-top: 0.5rem;
+        }
+
+        .details-toggle:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .message-details {
+            margin-top: 0.5rem;
+            padding: 0.5rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+            font-size: 0.85em;
+            display: none;
+        }
+
+        .message-details.show {
+            display: block;
+        }
+
+        .input-area {
+            padding: 1rem;
+            background: rgba(0, 0, 0, 0.3);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            gap: 1rem;
+        }
+
+        .input-area input {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            padding: 0.75rem;
+            color: #e0e0e0;
+            font-size: 1rem;
+        }
+
+        .input-area input:focus {
+            outline: none;
+            border-color: #4a90e2;
+        }
+
+        .input-area button {
+            background: #4a90e2;
+            color: white;
+            border: none;
+            padding: 0.75rem 2rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+        }
+
+        .input-area button:hover:not(:disabled) {
+            background: #357abd;
+        }
+
+        .input-area button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            animation: fadeIn 0.2s;
+        }
+
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: #2d2d44;
+            border-radius: 8px;
+            padding: 2rem;
+            max-width: 600px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-header h2 {
+            color: #fff;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: #e0e0e0;
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+        }
+
+        .modal-close:hover {
+            color: #fff;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #e0e0e0;
+            font-weight: 500;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 0.75rem;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            color: #e0e0e0;
+            font-size: 1rem;
+            font-family: inherit;
+        }
+
+        .form-group textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #4a90e2;
+        }
+
+        .spoiler-toggle {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: #e0e0e0;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9em;
+            width: 100%;
+            text-align: left;
+            margin-top: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .spoiler-toggle:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .spoiler-content {
+            display: none;
+            margin-top: 1rem;
+        }
+
+        .spoiler-content.show {
+            display: block;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .modal-actions button {
+            flex: 1;
+            padding: 0.75rem;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+        }
+
+        .btn-primary {
+            background: #4a90e2;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #357abd;
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: #e0e0e0;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .loading {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+
+        .error-message {
+            background: rgba(255, 0, 0, 0.2);
+            border: 1px solid rgba(255, 0, 0, 0.5);
+            border-radius: 4px;
+            padding: 1rem;
+            margin: 1rem;
+            color: #ff6b6b;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div>
+            <a href="/">← Back to Games</a>
+            <h1 style="display: inline;">AutoDnD - Game</h1>
+        </div>
+        <button onclick="openConfigModal()">⚙️ Configure LLM</button>
+    </div>
+
+    <div id="errorContainer"></div>
+
+    <div class="chat-container">
+        <div class="messages" id="messages"></div>
+        <div class="input-area">
+            <input type="text" id="actionInput" placeholder="Describe your action..." onkeypress="handleKeyPress(event)">
+            <button id="submitBtn" onclick="submitAction()">Send</button>
+        </div>
+    </div>
+
+    <!-- Config Modal -->
+    <div id="configModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>LLM Configuration</h2>
+                <button class="modal-close" onclick="closeConfigModal()">&times;</button>
+            </div>
+            <form id="configForm">
+                <div class="form-group">
+                    <label for="provider">Provider</label>
+                    <select id="provider" name="provider" onchange="updateProviderFields()">
+                        <option value="ollama">Ollama</option>
+                        <option value="openai">OpenAI</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="apiKey">API Key (OpenAI)</label>
+                    <input type="text" id="apiKey" name="api_key" placeholder="sk-...">
+                </div>
+                <div class="form-group">
+                    <label for="baseUrl">Base URL</label>
+                    <input type="text" id="baseUrl" name="base_url" placeholder="http://localhost:11434/v1 (Ollama)">
+                </div>
+                <div class="form-group">
+                    <label for="model">Model</label>
+                    <input type="text" id="model" name="model" placeholder="gpt-oss:20b">
+                </div>
+
+                <button type="button" class="spoiler-toggle" onclick="toggleSpoiler('advancedSpoiler')">
+                    <span>Advanced Settings</span>
+                    <span id="advancedSpoilerArrow">▼</span>
+                </button>
+                <div id="advancedSpoiler" class="spoiler-content">
+                    <div class="form-group">
+                        <label for="temperature">Temperature (0.0 - 2.0)</label>
+                        <input type="number" id="temperature" name="temperature" step="0.1" min="0" max="2" value="0.7">
+                    </div>
+                    <div class="form-group">
+                        <label for="maxTokens">Max Tokens (optional)</label>
+                        <input type="number" id="maxTokens" name="max_tokens" min="1" placeholder="Leave empty for default">
+                    </div>
+                    <div class="form-group">
+                        <label for="timeout">Timeout (seconds)</label>
+                        <input type="number" id="timeout" name="timeout" min="1" value="60">
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" onclick="closeConfigModal()">Cancel</button>
+                    <button type="submit" class="btn-primary">Save & Apply</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Get API base URL from current origin
+        const API_BASE = `${window.location.origin}/api`;
+        
+        // Get game_id from URL path
+        const pathParts = window.location.pathname.split('/');
+        const gameId = pathParts[pathParts.length - 1] || pathParts[pathParts.length - 2];
+
+        let currentState = null;
+
+        function showError(message) {
+            const container = document.getElementById('errorContainer');
+            container.innerHTML = `<div class="error-message">${message}</div>`;
+        }
+
+        function clearError() {
+            document.getElementById('errorContainer').innerHTML = '';
+        }
+
+        // Load initial state
+        async function loadState() {
+            try {
+                clearError();
+                const response = await fetch(`${API_BASE}/games/${gameId}/state`);
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to load game state');
+                }
+                const data = await response.json();
+                currentState = data.state;
+                renderMessages(currentState.message_history.messages);
+            } catch (error) {
+                console.error('Error loading state:', error);
+                showError(`Error loading game: ${error.message}. Make sure the game exists.`);
+            }
+        }
+
+        // Render messages
+        function renderMessages(messages) {
+            const container = document.getElementById('messages');
+            container.innerHTML = '';
+            
+            // Sort messages by sequence_number (ascending - youngest to oldest at bottom)
+            const sortedMessages = [...messages].sort((a, b) => a.sequence_number - b.sequence_number);
+            
+            sortedMessages.forEach(msg => {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${msg.source}`;
+                
+                const header = document.createElement('div');
+                header.className = 'message-header';
+                header.textContent = `${msg.source.toUpperCase()}${msg.source_id ? ` (${msg.source_id})` : ''} - ${new Date(msg.timestamp).toLocaleTimeString()}`;
+                
+                const content = document.createElement('div');
+                content.className = 'message-content';
+                content.textContent = msg.content;
+                
+                messageDiv.appendChild(header);
+                messageDiv.appendChild(content);
+                
+                // Add details toggle for tool messages (spoiler)
+                if (msg.source === 'tool') {
+                    const toggle = document.createElement('button');
+                    toggle.className = 'details-toggle';
+                    toggle.textContent = 'Show Details';
+                    toggle.onclick = () => toggleDetails(messageDiv);
+                    
+                    const details = document.createElement('div');
+                    details.className = 'message-details';
+                    details.innerHTML = `<pre>${JSON.stringify(msg.metadata || {}, null, 2)}</pre>`;
+                    
+                    messageDiv.appendChild(toggle);
+                    messageDiv.appendChild(details);
+                }
+                
+                container.appendChild(messageDiv);
+            });
+            
+            // Scroll to bottom
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function toggleDetails(messageDiv) {
+            const details = messageDiv.querySelector('.message-details');
+            const toggle = messageDiv.querySelector('.details-toggle');
+            if (details.classList.contains('show')) {
+                details.classList.remove('show');
+                toggle.textContent = 'Show Details';
+            } else {
+                details.classList.add('show');
+                toggle.textContent = 'Hide Details';
+            }
+        }
+
+        // Submit action
+        async function submitAction() {
+            const input = document.getElementById('actionInput');
+            const btn = document.getElementById('submitBtn');
+            const action = input.value.trim();
+            
+            if (!action) return;
+            
+            // Disable input
+            input.disabled = true;
+            btn.disabled = true;
+            document.body.classList.add('loading');
+            clearError();
+            
+            try {
+                const response = await fetch(`${API_BASE}/games/${gameId}/action`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        action: action,
+                    }),
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentState = data.state;
+                    renderMessages(currentState.message_history.messages);
+                    input.value = '';
+                } else {
+                    showError(`Error: ${data.error || 'Unknown error'}`);
+                }
+            } catch (error) {
+                console.error('Error submitting action:', error);
+                showError(`Error submitting action: ${error.message}`);
+            } finally {
+                input.disabled = false;
+                btn.disabled = false;
+                document.body.classList.remove('loading');
+                input.focus();
+            }
+        }
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                submitAction();
+            }
+        }
+
+        // Config modal
+        async function openConfigModal() {
+            const modal = document.getElementById('configModal');
+            modal.classList.add('show');
+            
+            // Load current config
+            try {
+                const response = await fetch(`${API_BASE}/config/llm`);
+                const data = await response.json();
+                const config = data.config;
+                
+                document.getElementById('provider').value = config.provider;
+                document.getElementById('apiKey').value = config.api_key || '';
+                document.getElementById('baseUrl').value = config.base_url || '';
+                document.getElementById('model').value = config.model;
+                document.getElementById('temperature').value = config.temperature;
+                document.getElementById('maxTokens').value = config.max_tokens || '';
+                document.getElementById('timeout').value = config.timeout;
+                
+                updateProviderFields();
+            } catch (error) {
+                console.error('Error loading config:', error);
+            }
+        }
+
+        function closeConfigModal() {
+            document.getElementById('configModal').classList.remove('show');
+        }
+
+        function updateProviderFields() {
+            const provider = document.getElementById('provider').value;
+            const apiKeyGroup = document.getElementById('apiKey').parentElement;
+            const baseUrlInput = document.getElementById('baseUrl');
+            
+            if (provider === 'ollama') {
+                apiKeyGroup.style.display = 'none';
+                baseUrlInput.placeholder = 'http://localhost:11434/v1';
+            } else {
+                apiKeyGroup.style.display = 'block';
+                baseUrlInput.placeholder = 'Leave empty for default OpenAI endpoint';
+            }
+        }
+
+        function toggleSpoiler(id) {
+            const content = document.getElementById(id);
+            const arrow = document.getElementById(id + 'Arrow');
+            if (content.classList.contains('show')) {
+                content.classList.remove('show');
+                arrow.textContent = '▼';
+            } else {
+                content.classList.add('show');
+                arrow.textContent = '▲';
+            }
+        }
+
+        // Handle form submission
+        document.getElementById('configForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const config = {
+                provider: formData.get('provider'),
+                api_key: formData.get('api_key') || null,
+                base_url: formData.get('base_url') || null,
+                model: formData.get('model'),
+                temperature: parseFloat(formData.get('temperature')),
+                max_tokens: formData.get('max_tokens') ? parseInt(formData.get('max_tokens')) : null,
+                timeout: parseInt(formData.get('timeout')),
+            };
+            
+            try {
+                const response = await fetch(`${API_BASE}/config/llm`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(config),
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('Configuration updated successfully!');
+                    closeConfigModal();
+                } else {
+                    alert(`Error: ${data.error}`);
+                }
+            } catch (error) {
+                console.error('Error updating config:', error);
+                alert('Error updating configuration. Check console for details.');
+            }
+        });
+
+        // Close modal on outside click
+        window.onclick = function(event) {
+            const modal = document.getElementById('configModal');
+            if (event.target === modal) {
+                closeConfigModal();
+            }
+        }
+
+        // Initialize
+        if (gameId) {
+            loadState();
+        } else {
+            showError('No game ID provided in URL');
+        }
+    </script>
+</body>
+</html>
+

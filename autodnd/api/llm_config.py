@@ -2,7 +2,9 @@
 
 from typing import Literal, Optional
 
+from langchain.chat_models import BaseChatModel
 from langchain_openai import ChatOpenAI
+from langchain_ollama import ChatOllama
 from pydantic import BaseModel, Field
 
 
@@ -24,7 +26,7 @@ class LLMConfigManager:
     def __init__(self, initial_config: Optional[LLMConfig] = None) -> None:
         """Initialize with optional config."""
         self._config = initial_config or LLMConfig()
-        self._llm_instance: Optional[ChatOpenAI] = None
+        self._llm_instance: Optional[BaseChatModel] = None
         # Don't initialize LLM at creation time - wait until first use
         # This allows the app to start without API keys
 
@@ -46,10 +48,12 @@ class LLMConfigManager:
 
     def _update_llm(self) -> None:
         """Update LLM instance based on current config."""
+
         kwargs = {
             "model": self._config.model,
             "temperature": self._config.temperature,
             "timeout": self._config.timeout,
+            "num_ctx": 2**15,
         }
 
         if self._config.max_tokens:
@@ -66,7 +70,10 @@ class LLMConfigManager:
                 kwargs["base_url"] = self._config.base_url
 
         try:
-            self._llm_instance = ChatOpenAI(**kwargs)
+            if self._config.provider == "ollama":
+                self._llm_instance = ChatOllama(**kwargs)
+            else:
+                self._llm_instance = ChatOpenAI(**kwargs)
         except Exception as e:
             # Log error but don't fail - LLM will be created when needed
             import logging

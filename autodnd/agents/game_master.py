@@ -45,6 +45,7 @@ class GameMasterAgent:
             model="gpt-oss:20b",
             temperature=0.4,
             base_url="http://localhost:11434",
+            num_ctx=2**15,
         )
 
     def _build_agent(self) -> None:
