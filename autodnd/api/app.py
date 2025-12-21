@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Optional
 
 import os
-
+import logging
 from flask import Flask, jsonify, request, send_from_directory
 from werkzeug.exceptions import HTTPException
 
@@ -19,6 +19,7 @@ from autodnd.agents.tools import (
 from autodnd.api.llm_config import LLMConfig, LLMConfigManager
 from autodnd.engine.game_engine import GameEngine
 from autodnd.models.actions import Action, ActionType, TimeCost
+from autodnd.models.metadata import Difficulty, GameMetadata, RulesVariant
 from autodnd.models.messages import MessageSource, MessageType
 from autodnd.models.player import Player
 from autodnd.models.state import GameState
@@ -29,6 +30,12 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fil
 STATIC_DIR = os.path.join(BASE_DIR, "static")
 
 app = Flask(__name__, static_folder=STATIC_DIR, static_url_path="/static")
+
+logging.basicConfig(level=logging.DEBUG, format='[%(asctime)s - %(name)-15s - %(levelname)-8s] %(message)s')
+
+@app.before_request
+def log_request_info():
+    app.logger.info('Access to: %s', request.url)
 
 
 # Error handlers for API routes
@@ -60,29 +67,33 @@ def handle_internal_error(e: Exception):
     return f"Internal Server Error", 500
 
 
-# Global game engine instance
-_game_engine: Optional[GameEngine] = None
-_game_master: Optional[GameMasterAgent] = None
+# Global game storage: game_id -> (GameEngine, GameMasterAgent)
+_games: dict[str, tuple[GameEngine, GameMasterAgent]] = {}
 _llm_config_manager = LLMConfigManager()
 
 
-def _get_game_engine() -> GameEngine:
-    """Get or create game engine."""
-    global _game_engine
-    if _game_engine is None:
-        _game_engine = _create_initial_game()
-        _setup_game_master()
-    return _game_engine
+def _get_game_engine(game_id: Optional[str] = None) -> Optional[GameEngine]:
+    """Get game engine by game_id, or return None if not found."""
+    if game_id is None:
+        return None
+    if game_id in _games:
+        return _games[game_id][0]
+    return None
 
 
-def _setup_game_master() -> None:
+def _get_game_master(game_id: Optional[str] = None) -> Optional[GameMasterAgent]:
+    """Get game master by game_id, or return None if not found."""
+    if game_id is None:
+        return None
+    if game_id in _games:
+        return _games[game_id][1]
+    return None
+
+
+def _setup_game_master(engine: GameEngine, custom_prompt: Optional[str] = None) -> GameMasterAgent:
     """Setup game master agent."""
-    global _game_master, _game_engine
-    if _game_engine is None:
-        return
-
     def state_getter():
-        return _game_engine.state
+        return engine.state
 
     tools = [
         create_roll_dice_tool(),
@@ -92,10 +103,14 @@ def _setup_game_master() -> None:
     ]
 
     llm = _llm_config_manager.get_llm()
-    _game_master = GameMasterAgent(llm=llm, tools=tools, engine_getter=lambda: _game_engine)
+    return GameMasterAgent(llm=llm, tools=tools, engine_getter=lambda: engine, system_prompt=custom_prompt)
 
 
-def _create_initial_game() -> GameEngine:
+def _create_initial_game(
+    difficulty: Optional[str] = None,
+    rules_variant: Optional[str] = None,
+    game_master_prompt: Optional[str] = None,
+) -> tuple[GameEngine, GameMasterAgent]:
     """Create initial game state."""
     # Create a default player
     player_id = str(uuid.uuid4())
@@ -109,6 +124,16 @@ def _create_initial_game() -> GameEngine:
         position=HexCoordinate(q=0, r=0),
     )
 
+    # Parse difficulty and rules_variant
+    diff = Difficulty(difficulty) if difficulty else Difficulty.NORMAL
+    rules = RulesVariant(rules_variant) if rules_variant else RulesVariant.STANDARD
+    
+    settings = {}
+    if game_master_prompt:
+        settings["game_master_prompt"] = game_master_prompt
+    
+    metadata = GameMetadata(difficulty=diff, rules_variant=rules, settings=settings)
+
     initial_state = GameState(
         game_id=str(uuid.uuid4()),
         state_version=0,
@@ -116,23 +141,64 @@ def _create_initial_game() -> GameEngine:
         players=[player],
         world_map=HexMap(),
         current_time=TimeState(),
+        metadata=metadata,
     )
 
     engine = GameEngine(initial_state=initial_state)
-    return engine
+    game_master = _setup_game_master(engine, game_master_prompt)
+    return engine, game_master
+
+
+@app.route("/api/games", methods=["GET"])
+def list_games():
+    """List all games."""
+    games = []
+    for game_id, (engine, _) in _games.items():
+        games.append({
+            "game_id": game_id,
+            "created_at": engine.state.created_at.isoformat(),
+            "state_version": engine.state.state_version,
+            "players": [{"player_id": p.player_id, "name": p.name} for p in engine.state.players],
+            "metadata": engine.state.metadata.model_dump(),
+        })
+    return jsonify({"games": games})
+
+
+@app.route("/api/games", methods=["POST"])
+def create_game():
+    """Create a new game with settings."""
+    if not request.is_json:
+        return jsonify({"error": "Content-Type must be application/json"}), 400
+
+    data = request.get_json() or {}
+    
+    difficulty = data.get("difficulty")
+    rules_variant = data.get("rules_variant")
+    game_master_prompt = data.get("game_master_prompt")
+    
+    try:
+        engine, game_master = _create_initial_game(
+            difficulty=difficulty,
+            rules_variant=rules_variant,
+            game_master_prompt=game_master_prompt,
+        )
+        game_id = engine.state.game_id
+        _games[game_id] = (engine, game_master)
+        return jsonify({"success": True, "game_id": game_id})
+    except Exception as e:
+        app.logger.error(f"Error creating game: {e}", exc_info=True)
+        return jsonify({"error": "Failed to create game", "message": str(e)}), 500
 
 
 @app.route("/api/game/start", methods=["POST"])
 def start_game():
-    """Initialize new game."""
-    global _game_engine, _game_master
-    _game_engine = _create_initial_game()
-    _setup_game_master()
-    return jsonify({"success": True, "game_id": _game_engine.state.game_id})
+    """Initialize new game (deprecated, use /api/games POST instead)."""
+    # For backwards compatibility
+    return create_game()
 
 
-@app.route("/api/game/action", methods=["POST"])
-def submit_action():
+@app.route("/api/games/<game_id>/action", methods=["POST"])
+def submit_action(game_id: str):
     """Submit player action."""
     if not request.is_json:
         return jsonify({"error": "Content-Type must be application/json"}), 400
@@ -147,7 +213,10 @@ def submit_action():
     if not action_text:
         return jsonify({"error": "Action text is required"}), 400
 
-    engine = _get_game_engine()
+    engine = _get_game_engine(game_id)
+    if not engine:
+        return jsonify({"error": "Game not found"}), 404
+    
     if not engine.state.players:
         return jsonify({"error": "No players in game"}), 400
 
@@ -169,8 +238,8 @@ def submit_action():
 
     # Get master response using game master agent
     master_response = ""
-    global _game_master
-    if success and _game_master:
+    game_master = _get_game_master(game_id)
+    if success and game_master:
         # Get recent message history for context
         recent_messages = [
             {
@@ -182,7 +251,7 @@ def submit_action():
         ]
 
         try:
-            master_response = _game_master.process_action(action_text, recent_messages)
+            master_response = game_master.process_action(action_text, recent_messages)
             # Add master response to state
             engine.add_message(
                 content=master_response,
@@ -212,15 +281,37 @@ def submit_action():
     )
 
 
-@app.route("/api/game/state", methods=["GET"])
-def get_state():
+@app.route("/api/game/action", methods=["POST"])
+def submit_action_legacy():
+    """Submit player action (legacy route without game_id)."""
+    # For backwards compatibility - use first available game
+    if not _games:
+        return jsonify({"error": "No games available. Please create a game first."}), 400
+    game_id = list(_games.keys())[0]
+    return submit_action(game_id)
+
+
+@app.route("/api/games/<game_id>/state", methods=["GET"])
+def get_state(game_id: str):
     """Get current game state."""
-    engine = _get_game_engine()
+    engine = _get_game_engine(game_id)
+    if not engine:
+        return jsonify({"error": "Game not found"}), 404
     return jsonify({"state": _serialize_state_for_api(engine.state)})
 
 
-@app.route("/api/game/revert", methods=["POST"])
-def revert_to_snapshot():
+@app.route("/api/game/state", methods=["GET"])
+def get_state_legacy():
+    """Get current game state (legacy route without game_id)."""
+    # For backwards compatibility - use first available game
+    if not _games:
+        return jsonify({"error": "No games available. Please create a game first."}), 400
+    game_id = list(_games.keys())[0]
+    return get_state(game_id)
+
+
+@app.route("/api/games/<game_id>/revert", methods=["POST"])
+def revert_to_snapshot(game_id: str):
     """Revert to snapshot."""
     if not request.is_json:
         return jsonify({"error": "Content-Type must be application/json"}), 400
@@ -233,7 +324,10 @@ def revert_to_snapshot():
     if snapshot_index is None:
         return jsonify({"error": "snapshot_index is required"}), 400
 
-    engine = _get_game_engine()
+    engine = _get_game_engine(game_id)
+    if not engine:
+        return jsonify({"error": "Game not found"}), 404
+
     success, error_msg = engine.revert_to(snapshot_index)
 
     if success:
@@ -242,10 +336,13 @@ def revert_to_snapshot():
         return jsonify({"success": False, "error": error_msg}), 400
 
 
-@app.route("/api/game/history", methods=["GET"])
-def list_snapshots():
+@app.route("/api/games/<game_id>/history", methods=["GET"])
+def list_snapshots(game_id: str):
     """List available snapshots."""
-    engine = _get_game_engine()
+    engine = _get_game_engine(game_id)
+    if not engine:
+        return jsonify({"error": "Game not found"}), 404
+    
     snapshots = engine.history.list_snapshots()
     return jsonify(
         {
@@ -280,13 +377,10 @@ def update_llm_config():
     try:
         new_config = LLMConfig(**data)
         _llm_config_manager.update_config(new_config)
-        # Update game master with new LLM
-        global _game_master
-        if _game_master:
-            _game_master.update_llm(_llm_config_manager.get_llm())
-        else:
-            # Recreate game master if it doesn't exist
-            _setup_game_master()
+        # Update game masters with new LLM
+        new_llm = _llm_config_manager.get_llm()
+        for game_id, (_, game_master) in _games.items():
+            game_master.update_llm(new_llm)
         return jsonify({"success": True, "config": _llm_config_manager.config.model_dump()})
     except Exception as e:
         app.logger.error(f"Error updating LLM config: {e}", exc_info=True)
@@ -297,6 +391,22 @@ def update_llm_config():
 def index():
     """Serve main page."""
     if app.static_folder and os.path.exists(os.path.join(app.static_folder, "index.html")):
+        return send_from_directory(app.static_folder, "index.html")
+    return jsonify({"error": "Frontend not found"}), 404
+
+
+@app.route("/game/<game_id>")
+def game_view(game_id: str):
+    """Serve game view page."""
+    # Check if game exists
+    if game_id not in _games:
+        return jsonify({"error": "Game not found"}), 404
+    
+    # Serve the game.html page if it exists, otherwise serve index.html
+    game_html_path = os.path.join(app.static_folder, "game.html") if app.static_folder else None
+    if game_html_path and os.path.exists(game_html_path):
+        return send_from_directory(app.static_folder, "game.html")
+    elif app.static_folder and os.path.exists(os.path.join(app.static_folder, "index.html")):
         return send_from_directory(app.static_folder, "index.html")
     return jsonify({"error": "Frontend not found"}), 404
 

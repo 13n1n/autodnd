@@ -3,9 +3,11 @@
 from typing import Callable, Optional
 
 from langchain.agents import create_agent
+from langchain.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.tools import StructuredTool
 from langchain_openai import ChatOpenAI
+from langchain_ollama import ChatOllama
 
 from autodnd.engine.game_engine import GameEngine
 from autodnd.models.messages import MessageSource, MessageType
@@ -16,9 +18,10 @@ class GameMasterAgent:
 
     def __init__(
         self,
-        llm: Optional[ChatOpenAI] = None,
+        llm: Optional[BaseChatModel] = None,
         tools: Optional[list[StructuredTool]] = None,
         engine_getter: Optional[Callable[[], GameEngine]] = None,
+        system_prompt: Optional[str] = None,
     ) -> None:
         """
         Initialize Game Master Agent.
@@ -27,23 +30,28 @@ class GameMasterAgent:
             llm: LangChain LLM instance (if None, will be created with defaults)
             tools: List of tools for the agent
             engine_getter: Function to get current game engine instance
+            system_prompt: Custom system prompt for the game master (optional)
         """
         self._engine_getter = engine_getter
         self._llm = llm or self._create_default_llm()
         self._tools = tools or []
+        self._custom_prompt = system_prompt
         self._agent = None
         self._build_agent()
 
-    def _create_default_llm(self) -> ChatOpenAI:
+    def _create_default_llm(self) -> ChatOllama:
         """Create default LLM instance."""
-        return ChatOpenAI(
-            model="gpt-4o-mini",
-            temperature=0.7,
+        return ChatOllama(
+            model="gpt-oss:20b",
+            temperature=0.4,
+            base_url="http://localhost:11434",
         )
 
     def _build_agent(self) -> None:
         """Build the agent using create_agent."""
-        system_prompt = """You are a Dungeon Master for a D&D game. Your role is to:
+
+        system_prompt = f"""
+You are a Dungeon Master for a D&D game. Your role is to:
 1. Interpret player actions and describe what happens
 2. Create engaging narratives and storylines
 3. Manage NPCs and world events
@@ -57,11 +65,15 @@ You have access to tools to:
 
 When responding to player actions:
 - Be creative and descriptive
-- Follow D&D rules and mechanics
+- Follow D&D-like rules and mechanics
 - Keep responses concise but engaging
 - Use tools when needed for dice rolls or checking game state
 
-Always respond in character as the Dungeon Master."""
+Always respond in character as the Dungeon Master.
+
+Be polite and friendly. Also, here some requests from player:
+
+{self._custom_prompt}""".strip()
 
         self._agent = create_agent(
             model=self._llm,
@@ -72,6 +84,11 @@ Always respond in character as the Dungeon Master."""
     def update_llm(self, llm: ChatOpenAI) -> None:
         """Update the LLM instance (for hot-reconfiguration)."""
         self._llm = llm
+        self._build_agent()
+    
+    def update_system_prompt(self, system_prompt: Optional[str]) -> None:
+        """Update the system prompt (for hot-reconfiguration)."""
+        self._custom_prompt = system_prompt
         self._build_agent()
 
     def process_action(self, action_description: str, message_history: list[dict]) -> str:

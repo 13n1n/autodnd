@@ -12,6 +12,7 @@ dependencies = [
     "langchain-openai",
     "pydantic",
     "waitress>=3.0.2",
+    "langchain-ollama>=1.0.1",
 ]
 
 [project.optional-dependencies]
