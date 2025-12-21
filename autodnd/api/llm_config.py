@@ -9,10 +9,10 @@ from pydantic import BaseModel, Field
 class LLMConfig(BaseModel):
     """LLM configuration model."""
 
-    provider: Literal["openai", "ollama"] = Field(default="openai", description="LLM provider")
+    provider: Literal["openai", "ollama"] = Field(default="ollama", description="LLM provider")
     api_key: Optional[str] = Field(default=None, description="API key for OpenAI")
-    base_url: Optional[str] = Field(default=None, description="Base URL (for Ollama or custom OpenAI endpoints)")
-    model: str = Field(default="gpt-4o-mini", description="Model name")
+    base_url: Optional[str] = Field(default="http://localhost:11434/v1", description="Base URL (for Ollama or custom OpenAI endpoints)")
+    model: str = Field(default="gpt-oss:20b", description="Model name")
     temperature: float = Field(default=0.7, ge=0.0, le=2.0, description="Temperature")
     max_tokens: Optional[int] = Field(default=None, description="Max tokens")
     timeout: int = Field(default=60, description="Timeout in seconds")
