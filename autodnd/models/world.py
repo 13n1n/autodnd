@@ -3,7 +3,7 @@
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class TerrainType(str, Enum):
@@ -23,15 +23,16 @@ class TerrainType(str, Enum):
 class HexCoordinate(BaseModel):
     """Hex grid coordinates (axial coordinate system)."""
 
+    model_config = ConfigDict(frozen=True)  # Immutable model
+
     q: int = Field(description="Q coordinate (axial)")
     r: int = Field(description="R coordinate (axial)")
-
-    class Config:
-        frozen = True  # Immutable model
 
 
 class HexCell(BaseModel):
     """Individual map cell."""
+
+    model_config = ConfigDict(frozen=True)  # Immutable model
 
     coordinates: HexCoordinate = Field(description="Hex coordinates")
     terrain: TerrainType = Field(description="Terrain type")
@@ -41,19 +42,15 @@ class HexCell(BaseModel):
     discovered: bool = Field(default=False, description="Whether cell has been discovered")
     description: Optional[str] = Field(default=None, description="Cell description")
 
-    class Config:
-        frozen = True  # Immutable model
-
 
 class HexMap(BaseModel):
     """Complete world map with all cells."""
 
+    model_config = ConfigDict(frozen=True)  # Immutable model
+
     cells: dict[tuple[int, int], HexCell] = Field(
         default_factory=dict, description="Map cells indexed by (q, r) coordinates"
     )
-
-    class Config:
-        frozen = True  # Immutable model
 
     def get_cell(self, coordinate: HexCoordinate) -> Optional[HexCell]:
         """Get cell at given coordinate."""
@@ -70,10 +67,9 @@ class HexMap(BaseModel):
 class TimeState(BaseModel):
     """Game time tracking."""
 
+    model_config = ConfigDict(frozen=True)  # Immutable model
+
     current_day: int = Field(ge=1, default=1, description="Current day number")
     half_day_increment: int = Field(ge=0, default=0, description="Half-day increments within day (0 or 1)")
     total_time_elapsed: int = Field(ge=0, default=0, description="Total half-days elapsed")
-
-    class Config:
-        frozen = True  # Immutable model
 

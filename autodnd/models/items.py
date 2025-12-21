@@ -3,7 +3,7 @@
 from enum import Enum
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class ItemTag(str, Enum):
@@ -32,6 +32,8 @@ class ItemLocation(str, Enum):
 class Item(BaseModel):
     """Complete item information."""
 
+    model_config = ConfigDict(frozen=True)  # Immutable model
+
     item_id: str = Field(description="Unique item identifier")
     name: str = Field(description="Item name")
     description: str = Field(description="Item description")
@@ -50,21 +52,17 @@ class Item(BaseModel):
         default=None, ge=0, description="Slot index within bag if in bag"
     )
 
-    class Config:
-        frozen = True  # Immutable model
-
 
 class Bag(BaseModel):
     """Bag container with slots."""
+
+    model_config = ConfigDict(frozen=True)  # Immutable model
 
     bag_id: str = Field(description="Unique bag identifier")
     size: int = Field(ge=3, le=12, description="Number of slots in bag")
     items: list[Optional[Item]] = Field(
         default_factory=list, description="Items in bag slots (None for empty slots)"
     )
-
-    class Config:
-        frozen = True  # Immutable model
 
     @model_validator(mode="after")
     def validate_items_size(self) -> "Bag":
@@ -81,6 +79,8 @@ class Bag(BaseModel):
 
 class PlayerInventory(BaseModel):
     """Complete inventory state."""
+
+    model_config = ConfigDict(frozen=True)  # Immutable model
 
     # All bags (up to 7)
     bags: list[Bag] = Field(default_factory=list, max_length=7, description="All bags")
@@ -102,7 +102,4 @@ class PlayerInventory(BaseModel):
     all_items: list[Item] = Field(
         default_factory=list, description="Complete list of every item the player owns"
     )
-
-    class Config:
-        frozen = True  # Immutable model
 

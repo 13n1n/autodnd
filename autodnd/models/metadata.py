@@ -3,7 +3,7 @@
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Difficulty(str, Enum):
@@ -26,6 +26,8 @@ class RulesVariant(str, Enum):
 class GameMetadata(BaseModel):
     """Game settings and metadata."""
 
+    model_config = ConfigDict(frozen=True)  # Immutable model
+
     difficulty: Difficulty = Field(default=Difficulty.NORMAL, description="Game difficulty")
     rules_variant: RulesVariant = Field(
         default=RulesVariant.STANDARD, description="Rules variant"
@@ -33,7 +35,4 @@ class GameMetadata(BaseModel):
     settings: dict[str, Any] = Field(
         default_factory=dict, description="Additional game settings"
     )
-
-    class Config:
-        frozen = True  # Immutable model
 

@@ -4,7 +4,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class MessageSource(str, Enum):
@@ -30,6 +30,8 @@ class MessageType(str, Enum):
 class Message(BaseModel):
     """Complete message history entry."""
 
+    model_config = ConfigDict(frozen=True)  # Immutable model
+
     message_id: str = Field(description="Unique message identifier")
     timestamp: datetime = Field(description="Message timestamp")
     sequence_number: int = Field(ge=0, description="Order of messages")
@@ -52,17 +54,13 @@ class Message(BaseModel):
         default_factory=dict, description="Additional context (dice rolls, validation results, etc.)"
     )
 
-    class Config:
-        frozen = True  # Immutable model
-
 
 class MessageHistory(BaseModel):
     """Ordered list of all messages."""
 
-    messages: list[Message] = Field(default_factory=list, description="All messages in order")
+    model_config = ConfigDict(frozen=True)  # Immutable model
 
-    class Config:
-        frozen = True  # Immutable model
+    messages: list[Message] = Field(default_factory=list, description="All messages in order")
 
     def add_message(self, message: Message) -> "MessageHistory":
         """Create new history with added message (immutable update)."""

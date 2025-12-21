@@ -2,7 +2,7 @@
 
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from autodnd.models.items import PlayerInventory
 from autodnd.models.stats import PlayerStats
@@ -11,6 +11,8 @@ from autodnd.models.world import HexCoordinate
 
 class Player(BaseModel):
     """Complete player information."""
+
+    model_config = ConfigDict(frozen=True)  # Immutable model
 
     player_id: str = Field(description="Unique player identifier")
     name: str = Field(description="Player name")
@@ -37,7 +39,4 @@ class Player(BaseModel):
     status_conditions: list[str] = Field(
         default_factory=list, description="Status conditions (e.g., 'poisoned', 'stunned')"
     )
-
-    class Config:
-        frozen = True  # Immutable model
 

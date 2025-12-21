@@ -3,7 +3,7 @@
 from enum import Enum
 from typing import Any, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ActionType(str, Enum):
@@ -34,6 +34,8 @@ class TimeCost(str, Enum):
 class Action(BaseModel):
     """Player action with validation."""
 
+    model_config = ConfigDict(frozen=True)  # Immutable model
+
     action_id: str = Field(description="Unique action identifier")
     action_type: ActionType = Field(description="Type of action")
     parameters: dict[str, Any] = Field(
@@ -42,12 +44,11 @@ class Action(BaseModel):
     time_cost: TimeCost = Field(default=TimeCost.NO_TIME, description="Time cost of action")
     player_id: str = Field(description="Player performing action")
 
-    class Config:
-        frozen = True  # Immutable model
-
 
 class CombatState(BaseModel):
     """Current combat information (if active)."""
+
+    model_config = ConfigDict(frozen=True)  # Immutable model
 
     combat_id: str = Field(description="Unique combat identifier")
     participants: list[str] = Field(description="List of participant IDs (players and NPCs)")
@@ -56,12 +57,11 @@ class CombatState(BaseModel):
     combat_log: list[str] = Field(default_factory=list, description="Combat action log")
     is_active: bool = Field(default=True, description="Whether combat is currently active")
 
-    class Config:
-        frozen = True  # Immutable model
-
 
 class Effect(BaseModel):
     """Active buff/debuff effect."""
+
+    model_config = ConfigDict(frozen=True)  # Immutable model
 
     effect_id: str = Field(description="Unique effect identifier")
     effect_type: str = Field(description="Type of effect (buff/debuff)")
@@ -71,7 +71,4 @@ class Effect(BaseModel):
     )
     source: str = Field(description="Source of effect (item_id, spell_id, etc.)")
     description: str = Field(description="Effect description")
-
-    class Config:
-        frozen = True  # Immutable model
 

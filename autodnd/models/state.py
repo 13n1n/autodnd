@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Any, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from autodnd.models.actions import Action, CombatState, Effect
 from autodnd.models.messages import Message, MessageHistory
@@ -14,6 +14,8 @@ from autodnd.models.world import HexMap, TimeState
 
 class GameState(BaseModel):
     """LARGE, comprehensive state model - immutable and self-contained."""
+
+    model_config = ConfigDict(frozen=True)  # Immutable model
 
     # Game identification
     game_id: str = Field(description="Unique game identifier")
@@ -48,9 +50,6 @@ class GameState(BaseModel):
         default_factory=GameMetadata, description="Settings, difficulty, etc."
     )
 
-    class Config:
-        frozen = True  # Immutable model
-
     def model_dump_json(self, **kwargs) -> str:
         """Serialize to JSON string."""
         return super().model_dump_json(**kwargs)
@@ -63,15 +62,14 @@ class GameState(BaseModel):
 class StateSnapshot(BaseModel):
     """Historical state snapshot for reversion."""
 
+    model_config = ConfigDict(frozen=True)  # Immutable model
+
     index: int = Field(ge=0, description="Sequential snapshot number")
     timestamp: datetime = Field(default_factory=datetime.now, description="When snapshot was created")
     state: GameState = Field(description="Complete, self-contained state (all players, items, messages, etc.)")
     metadata: dict[str, Any] = Field(
         default_factory=dict, description="Additional snapshot metadata (reason, tags, etc.)"
     )
-
-    class Config:
-        frozen = True  # Immutable model
 
     def model_dump_json(self, **kwargs) -> str:
         """Serialize to JSON string."""
