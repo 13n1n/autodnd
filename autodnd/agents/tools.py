@@ -36,6 +36,14 @@ class GetMapStateInput(BaseModel):
     coordinate_r: Optional[int] = Field(default=None, description="R coordinate (optional)")
 
 
+class GetNPCInfoInput(BaseModel):
+    """Input for get NPC info tool."""
+
+    npc_id: str = Field(description="NPC ID to get information for")
+    coordinate_q: Optional[int] = Field(default=None, description="Q coordinate where NPC is located")
+    coordinate_r: Optional[int] = Field(default=None, description="R coordinate where NPC is located")
+
+
 def create_roll_dice_tool() -> StructuredTool:
     """Create roll dice tool."""
 
@@ -130,5 +138,49 @@ def create_get_map_state_tool(state_getter) -> StructuredTool:
         name="get_map_state",
         description="Get map state. Provide coordinate_q and coordinate_r for specific cell, or omit for all cells",
         args_schema=GetMapStateInput,
+    )
+
+
+def create_get_npc_info_tool(state_getter) -> StructuredTool:
+    """Create get NPC info tool."""
+
+    def get_npc_info(npc_id: str, coordinate_q: Optional[int] = None, coordinate_r: Optional[int] = None) -> dict:
+        """Get NPC information from current game state."""
+        state: GameState = state_getter()
+
+        # Search for NPC in map cells
+        npc_found = False
+        npc_location = None
+
+        if coordinate_q is not None and coordinate_r is not None:
+            from autodnd.models.world import HexCoordinate
+
+            coord = HexCoordinate(q=coordinate_q, r=coordinate_r)
+            cell = state.world_map.get_cell(coord)
+            if cell and npc_id in cell.contents:
+                npc_found = True
+                npc_location = {"q": coordinate_q, "r": coordinate_r}
+        else:
+            # Search all cells
+            for (q, r), cell in state.world_map.cells.items():
+                if npc_id in cell.contents:
+                    npc_found = True
+                    npc_location = {"q": q, "r": r}
+                    break
+
+        if not npc_found:
+            return {"error": f"NPC {npc_id} not found in current game state"}
+
+        return {
+            "npc_id": npc_id,
+            "location": npc_location,
+            "found": True,
+        }
+
+    return StructuredTool.from_function(
+        func=get_npc_info,
+        name="get_npc_info",
+        description="Get information about an NPC by npc_id. Optionally provide coordinates to search specific cell",
+        args_schema=GetNPCInfoInput,
     )
 

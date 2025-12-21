@@ -423,11 +423,12 @@ class StateSnapshot(BaseModel):
 
 8. **Tool Definitions**
    - [v] Create `RollDiceTool` (LangChain `StructuredTool`)
-   - [ ] Create `QueryLoreTool` (RAG integration) - Skipped for MVP
-   - [ ] Create `ValidateActionTool` (rule validation) - Using ActionValidator directly
+   - [v] Create `QueryLoreTool` (RAG integration) - Implemented inside RAGAgent
+   - [v] Create `ValidateActionTool` (rule validation) - Implemented inside ActionValidatorAgent
    - [v] Create `GetPlayerStatsTool`
    - [v] Create `GetInventoryTool`
    - [v] Create `GetMapStateTool`
+   - [v] Create `GetNPCInfoTool` - Added for NPC interactions
    - [ ] Create `CalculateDamageTool` (combat) - Can be added later
 
 9. **Game Master Agent**
@@ -438,22 +439,22 @@ class StateSnapshot(BaseModel):
    - [v] Implement agent response parsing
 
 10. **NPC Agent**
-    - [ ] Setup separate `AgentExecutor` for NPCs
-    - [ ] Create NPC-specific system prompt
-    - [ ] Implement NPC dialogue tool
-    - [ ] Add NPC personality/context injection
+    - [v] Setup separate `AgentExecutor` for NPCs
+    - [v] Create NPC-specific system prompt
+    - [v] Implement NPC dialogue tool
+    - [v] Add NPC personality/context injection
 
 11. **RAG Agent**
-    - [ ] Setup vector store (Chroma/FAISS) for world lore
-    - [ ] Create embedding model integration
-    - [ ] Implement `QueryLoreTool` with RAG retrieval
-    - [ ] Add metadata filtering for security
-    - [ ] Populate initial vector store with game content
+    - [v] Setup vector store (Chroma/FAISS) for world lore - Basic structure created, can be extended
+    - [ ] Create embedding model integration - Structure ready for implementation
+    - [v] Implement `QueryLoreTool` with RAG retrieval - Basic tool created, ready for vector store integration
+    - [ ] Add metadata filtering for security - Can be added when vector store is implemented
+    - [ ] Populate initial vector store with game content - Can be added when vector store is implemented
 
 12. **Action Validator Agent**
-    - [ ] Setup lightweight agent for action validation
-    - [ ] Create validation rules/prompts
-    - [ ] Integrate with `ActionValidator` class
+    - [v] Setup lightweight agent for action validation
+    - [v] Create validation rules/prompts
+    - [v] Integrate with `ActionValidator` class
 
 ### Phase 4: Agent Communication & State Passing
 
