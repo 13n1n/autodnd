@@ -419,7 +419,10 @@
             <a href="/">← Back to Games</a>
             <h1 style="display: inline;">AutoDnD - Game</h1>
         </div>
-        <button onclick="openConfigModal()">⚙️ Configure LLM</button>
+        <div>
+            <button onclick="openConfigModal()">⚙️ Configure LLM</button>
+            <button onclick="openSecurityModal()" style="margin-left: 0.5rem;">🔒 Security Settings</button>
+        </div>
     </div>
 
     <div id="errorContainer"></div>
@@ -481,6 +484,73 @@
 
                 <div class="modal-actions">
                     <button type="button" class="btn-secondary" onclick="closeConfigModal()">Cancel</button>
+                    <button type="submit" class="btn-primary">Save & Apply</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Security Config Modal -->
+    <div id="securityModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Security Configuration</h2>
+                <button class="modal-close" onclick="closeSecurityModal()">&times;</button>
+            </div>
+            <form id="securityForm">
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="securityEnabled" name="enabled" checked>
+                        Enable Security Layer
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="useLlmValidation" name="use_llm_validation" checked>
+                        Use LLM-based Validation (cheaper model)
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label for="maxInputLength">Max Input Length</label>
+                    <input type="number" id="maxInputLength" name="max_input_length" min="1" max="10000" value="1000">
+                </div>
+
+                <button type="button" class="spoiler-toggle" onclick="toggleSpoiler('securityAdvancedSpoiler')">
+                    <span>Security LLM Settings</span>
+                    <span id="securityAdvancedSpoilerArrow">▼</span>
+                </button>
+                <div id="securityAdvancedSpoiler" class="spoiler-content">
+                    <div class="form-group">
+                        <label for="securityProvider">Provider</label>
+                        <select id="securityProvider" name="security_llm_config.provider" onchange="updateSecurityProviderFields()">
+                            <option value="ollama">Ollama</option>
+                            <option value="openai">OpenAI</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="securityApiKey">API Key (OpenAI)</label>
+                        <input type="text" id="securityApiKey" name="security_llm_config.api_key" placeholder="sk-...">
+                    </div>
+                    <div class="form-group">
+                        <label for="securityBaseUrl">Base URL</label>
+                        <input type="text" id="securityBaseUrl" name="security_llm_config.base_url" placeholder="http://localhost:11434/v1 (Ollama)">
+                    </div>
+                    <div class="form-group">
+                        <label for="securityModel">Model (cheaper model recommended)</label>
+                        <input type="text" id="securityModel" name="security_llm_config.model" placeholder="qwen2.5:8b" value="qwen2.5:8b">
+                    </div>
+                    <div class="form-group">
+                        <label for="securityTemperature">Temperature (0.0 - 2.0)</label>
+                        <input type="number" id="securityTemperature" name="security_llm_config.temperature" step="0.1" min="0" max="2" value="0.1">
+                    </div>
+                    <div class="form-group">
+                        <label for="securityTimeout">Timeout (seconds)</label>
+                        <input type="number" id="securityTimeout" name="security_llm_config.timeout" min="1" value="30">
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" onclick="closeSecurityModal()">Cancel</button>
                     <button type="submit" class="btn-primary">Save & Apply</button>
                 </div>
             </form>
@@ -675,6 +745,100 @@
                 baseUrlInput.placeholder = 'Leave empty for default OpenAI endpoint';
             }
         }
+
+        // Security modal
+        async function openSecurityModal() {
+            const modal = document.getElementById('securityModal');
+            modal.classList.add('show');
+            
+            // Load current config
+            try {
+                const response = await fetch(`${API_BASE}/config/security`);
+                const data = await response.json();
+                const config = data.config;
+                
+                document.getElementById('securityEnabled').checked = config.enabled;
+                document.getElementById('useLlmValidation').checked = config.use_llm_validation;
+                document.getElementById('maxInputLength').value = config.max_input_length;
+                
+                if (config.security_llm_config) {
+                    const secConfig = config.security_llm_config;
+                    document.getElementById('securityProvider').value = secConfig.provider;
+                    document.getElementById('securityApiKey').value = secConfig.api_key || '';
+                    document.getElementById('securityBaseUrl').value = secConfig.base_url || '';
+                    document.getElementById('securityModel').value = secConfig.model;
+                    document.getElementById('securityTemperature').value = secConfig.temperature;
+                    document.getElementById('securityTimeout').value = secConfig.timeout;
+                }
+                
+                updateSecurityProviderFields();
+            } catch (error) {
+                console.error('Error loading security config:', error);
+            }
+        }
+
+        function closeSecurityModal() {
+            document.getElementById('securityModal').classList.remove('show');
+        }
+
+        function updateSecurityProviderFields() {
+            const provider = document.getElementById('securityProvider').value;
+            const apiKeyGroup = document.getElementById('securityApiKey').parentElement;
+            const baseUrlInput = document.getElementById('securityBaseUrl');
+            
+            if (provider === 'ollama') {
+                apiKeyGroup.style.display = 'none';
+                baseUrlInput.placeholder = 'http://localhost:11434/v1';
+            } else {
+                apiKeyGroup.style.display = 'block';
+                baseUrlInput.placeholder = 'Leave empty for default OpenAI endpoint';
+            }
+        }
+
+        // Security form submission
+        document.getElementById('securityForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const config = {
+                enabled: document.getElementById('securityEnabled').checked,
+                use_llm_validation: document.getElementById('useLlmValidation').checked,
+                max_input_length: parseInt(document.getElementById('maxInputLength').value),
+            };
+            
+            // Build security_llm_config if LLM validation is enabled
+            if (config.use_llm_validation) {
+                config.security_llm_config = {
+                    provider: document.getElementById('securityProvider').value,
+                    api_key: document.getElementById('securityApiKey').value || null,
+                    base_url: document.getElementById('securityBaseUrl').value || null,
+                    model: document.getElementById('securityModel').value,
+                    temperature: parseFloat(document.getElementById('securityTemperature').value),
+                    timeout: parseInt(document.getElementById('securityTimeout').value),
+                };
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/config/security`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(config),
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    closeSecurityModal();
+                    alert('Security configuration updated successfully!');
+                } else {
+                    alert(`Error: ${data.error || 'Unknown error'}`);
+                }
+            } catch (error) {
+                console.error('Error updating security config:', error);
+                alert(`Error updating security config: ${error.message}`);
+            }
+        });
 
         function toggleSpoiler(id) {
             const content = document.getElementById(id);

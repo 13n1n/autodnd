@@ -17,7 +17,10 @@ from autodnd.agents.tools import (
     create_roll_dice_tool,
 )
 from autodnd.api.llm_config import LLMConfig, LLMConfigManager
+from autodnd.api.security_config import SecurityConfig, SecurityConfigManager
 from autodnd.engine.game_engine import GameEngine
+from autodnd.security.input_sanitizer import InputSanitizer
+from autodnd.security.security_agent import SecurityAgent
 from autodnd.models.actions import Action, ActionType, TimeCost
 from autodnd.models.metadata import Difficulty, GameMetadata, RulesVariant
 from autodnd.models.messages import MessageSource, MessageType
@@ -70,6 +73,20 @@ def handle_internal_error(e: Exception):
 # Global game storage: game_id -> (GameEngine, GameMasterAgent)
 _games: dict[str, tuple[GameEngine, GameMasterAgent]] = {}
 _llm_config_manager = LLMConfigManager()
+_security_config_manager = SecurityConfigManager()
+_security_agent: SecurityAgent | None = None
+_input_sanitizer = InputSanitizer()
+
+
+def _get_security_agent() -> SecurityAgent | None:
+    """Get or create security agent."""
+    global _security_agent
+    if _security_config_manager.config.enabled and _security_config_manager.config.use_llm_validation:
+        if _security_agent is None:
+            security_config = _security_config_manager.config.get_security_llm_config()
+            _security_agent = SecurityAgent(config=security_config)
+        return _security_agent
+    return None
 
 
 def _get_game_engine(game_id: Optional[str] = None) -> Optional[GameEngine]:
@@ -212,6 +229,31 @@ def submit_action(game_id: str):
 
     if not action_text:
         return jsonify({"error": "Action text is required"}), 400
+
+    # Security layer: sanitize and validate input
+    security_config = _security_config_manager.config
+    if security_config.enabled:
+        # Sanitize input
+        sanitized_text = _input_sanitizer.sanitize(action_text)
+        
+        # Check if input is safe
+        is_safe, error_msg = _input_sanitizer.is_safe(sanitized_text)
+        if not is_safe:
+            return jsonify({"error": f"Input validation failed: {error_msg}"}), 400
+        
+        # Use sanitized text
+        action_text = sanitized_text
+        
+        # LLM-based validation (if enabled)
+        if security_config.use_llm_validation:
+            security_agent = _get_security_agent()
+            if security_agent:
+                validation_result = security_agent.validate_input(action_text)
+                if not validation_result.is_safe:
+                    return jsonify({
+                        "error": f"Security validation failed: {validation_result.reason}",
+                        "risk_level": validation_result.risk_level,
+                    }), 400
 
     engine = _get_game_engine(game_id)
     if not engine:
@@ -384,6 +426,44 @@ def update_llm_config():
         return jsonify({"success": True, "config": _llm_config_manager.config.model_dump()})
     except Exception as e:
         app.logger.error(f"Error updating LLM config: {e}", exc_info=True)
+        return jsonify({"error": "Invalid configuration", "message": str(e)}), 400
+
+
+@app.route("/api/config/security", methods=["GET"])
+def get_security_config():
+    """Get current security configuration."""
+    config = _security_config_manager.config
+    return jsonify({"config": config.model_dump()})
+
+
+@app.route("/api/config/security", methods=["POST"])
+def update_security_config():
+    """Update security configuration (hot-reload)."""
+    if not request.is_json:
+        return jsonify({"error": "Content-Type must be application/json"}), 400
+
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+
+    try:
+        new_config = SecurityConfig(**data)
+        _security_config_manager.update_config(new_config)
+        
+        # Update security agent if LLM config changed
+        global _security_agent
+        if new_config.enabled and new_config.use_llm_validation:
+            security_llm_config = new_config.get_security_llm_config()
+            if _security_agent:
+                _security_agent.update_config(security_llm_config)
+            else:
+                _security_agent = SecurityAgent(config=security_llm_config)
+        else:
+            _security_agent = None
+            
+        return jsonify({"success": True, "config": _security_config_manager.config.model_dump()})
+    except Exception as e:
+        app.logger.error(f"Error updating security config: {e}", exc_info=True)
         return jsonify({"error": "Invalid configuration", "message": str(e)}), 400
 
 

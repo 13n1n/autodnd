@@ -70,3 +70,8 @@ ignore = [
 
 [tool.ruff.isort]
 known-first-party = ["autodnd"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]
