@@ -171,4 +171,80 @@ Be polite and friendly. Also, here some requests from player:
 
         return result.get("output", "Story continues...")
 
+    def generate_initial_intro(
+        self,
+        difficulty: Optional[str] = None,
+        custom_prompt: Optional[str] = None,
+    ) -> str:
+        """
+        Generate initial game introduction message.
+
+        This message should include:
+        - Game setting and world description
+        - Initial conflict or situation to resolve
+        - Objectives (may be hidden/unclear, requiring investigation)
+        - Starting context for the player
+
+        Args:
+            difficulty: Game difficulty level
+            custom_prompt: Optional custom prompt from player
+
+        Returns:
+            Initial intro message text
+        """
+        intro_prompt = """You are a Dungeon Master starting a new D&D adventure. Generate an engaging introduction message that:
+
+1. **Game Setting**: Describe the world, location, and atmosphere where the adventure begins. Be vivid and immersive.
+
+2. **Initial Conflict**: Present an immediate situation, problem, or conflict that needs to be addressed. This could be:
+   - A mystery to solve
+   - A threat to overcome
+   - A quest to complete
+   - A dilemma to resolve
+
+3. **Objectives**: Include objectives for the player, but make them intriguing:
+   - Some objectives should be clear and immediate
+   - Some objectives may be hidden or unclear, requiring investigation
+   - Objectives should feel natural and motivate exploration
+   - Don't reveal everything upfront - leave room for discovery
+
+4. **Starting Context**: Describe where the player character is, what they know, and what they can see or sense around them.
+
+Make the introduction engaging, mysterious, and compelling. Set up a world that invites exploration and investigation. The tone should match the difficulty level and any custom preferences provided.
+
+Write the introduction as if you are narrating directly to the player character."""
+
+        if difficulty:
+            intro_prompt += f"\n\nDifficulty Level: {difficulty}"
+
+        if custom_prompt:
+            intro_prompt += f"\n\nPlayer Preferences:\n{custom_prompt}"
+
+        messages = [{"role": "user", "content": intro_prompt}]
+
+        result = self._agent.invoke({"messages": messages})
+
+        # Extract the last message content from the response
+        if result.get("messages"):
+            last_message = result["messages"][-1]
+            # Handle both AIMessage objects and dicts
+            if hasattr(last_message, "content"):
+                content = last_message.content
+                if isinstance(content, str):
+                    return content
+                elif isinstance(content, list):
+                    # Handle content blocks
+                    return " ".join(str(item) for item in content)
+            elif isinstance(last_message, dict):
+                content = last_message.get("content", "")
+                if isinstance(content, str):
+                    return content
+
+        # Fallback intro
+        return """Welcome, adventurer! You find yourself at the beginning of a new journey. 
+
+The world around you is full of mysteries and challenges waiting to be discovered. Your path forward is unclear, but you sense that important events are unfolding.
+
+What would you like to do?"""
+
 

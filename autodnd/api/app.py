@@ -146,7 +146,11 @@ def _create_initial_game(
     diff = Difficulty(difficulty) if difficulty else Difficulty.NORMAL
     rules = RulesVariant(rules_variant) if rules_variant else RulesVariant.STANDARD
     
-    settings = {}
+    # Store LLM config in game settings
+    llm_config = _llm_config_manager.config
+    settings = {
+        "llm_config": llm_config.model_dump(),  # Store LLM config for this game
+    }
     if game_master_prompt:
         settings["game_master_prompt"] = game_master_prompt
     
@@ -173,6 +177,30 @@ def _create_initial_game(
         engine_getter=lambda: engine,
     )
     engine.set_orchestrator(orchestrator)
+    
+    # Generate initial intro message from game master
+    try:
+        intro_message = game_master.generate_initial_intro(
+            difficulty=difficulty or "NORMAL",
+            custom_prompt=game_master_prompt,
+        )
+        
+        # Add intro message to game state
+        engine.add_message(
+            content=intro_message,
+            source=MessageSource.MASTER,
+            message_type=MessageType.RESPONSE,
+            metadata={"is_initial_intro": True},
+        )
+    except Exception as e:
+        app.logger.error(f"Error generating initial intro: {e}", exc_info=True)
+        # Add fallback intro message
+        engine.add_message(
+            content="Welcome, adventurer! Your journey begins here. What would you like to do?",
+            source=MessageSource.MASTER,
+            message_type=MessageType.RESPONSE,
+            metadata={"is_initial_intro": True, "error": str(e)},
+        )
     
     return engine, game_master
 
