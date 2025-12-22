@@ -13,7 +13,7 @@ class LLMConfig(BaseModel):
 
     provider: Literal["openai", "ollama"] = Field(default="ollama", description="LLM provider")
     api_key: Optional[str] = Field(default=None, description="API key for OpenAI")
-    base_url: Optional[str] = Field(default="http://localhost:11434/v1", description="Base URL (for Ollama or custom OpenAI endpoints)")
+    base_url: Optional[str] = Field(default="http://localhost:11434/", description="Base URL (for Ollama or custom OpenAI endpoints)")
     model: str = Field(default="gpt-oss:20b", description="Model name")
     temperature: float = Field(default=0.7, ge=0.0, le=2.0, description="Temperature")
     max_tokens: Optional[int] = Field(default=None, description="Max tokens")
@@ -60,7 +60,7 @@ class LLMConfigManager:
             kwargs["max_tokens"] = self._config.max_tokens
 
         if self._config.provider == "ollama":
-            kwargs["base_url"] = self._config.base_url or "http://localhost:11434/v1"
+            kwargs["base_url"] = self._config.base_url or "http://localhost:11434/"
             kwargs["api_key"] = "ollama"  # Ollama doesn't require real API key
         else:
             # For OpenAI, only set api_key if provided (allows environment variable fallback)

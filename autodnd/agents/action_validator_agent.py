@@ -1,6 +1,6 @@
 """Action Validator Agent using LangChain for validating player actions."""
 
-from typing import Callable, Optional
+from typing import TYPE_CHECKING, Callable, Optional
 
 from langchain.agents import create_agent
 from langchain.chat_models import BaseChatModel
@@ -10,8 +10,10 @@ from langchain_ollama import ChatOllama
 from pydantic import BaseModel, Field
 
 from autodnd.engine.action_validator import ActionValidator
-from autodnd.engine.game_engine import GameEngine
 from autodnd.models.actions import Action
+
+if TYPE_CHECKING:
+    from autodnd.engine.game_engine import GameEngine
 
 
 class ValidateActionInput(BaseModel):
@@ -28,7 +30,7 @@ class ActionValidatorAgent:
     def __init__(
         self,
         llm: Optional[BaseChatModel] = None,
-        engine_getter: Optional[Callable[[], GameEngine]] = None,
+        engine_getter: Optional["Callable[[], GameEngine]"] = None,
     ) -> None:
         """
         Initialize Action Validator Agent.

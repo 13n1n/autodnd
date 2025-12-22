@@ -1,7 +1,7 @@
 """RAG Agent using LangChain for retrieving world lore and game information."""
 
 import logging
-from typing import Any, Callable, Optional
+from typing import TYPE_CHECKING, Any, Callable, Optional
 
 import chromadb
 from chromadb.config import Settings
@@ -19,7 +19,8 @@ try:
 except ImportError:
     from langchain_community.embeddings import OllamaEmbeddings  # type: ignore
 
-from autodnd.engine.game_engine import GameEngine
+if TYPE_CHECKING:
+    from autodnd.engine.game_engine import GameEngine
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +43,7 @@ class RAGAgent:
     def __init__(
         self,
         llm: Optional[BaseChatModel] = None,
-        engine_getter: Optional[Callable[[], GameEngine]] = None,
+        engine_getter: Optional["Callable[[], GameEngine]"] = None,
         vector_store: Optional[Chroma] = None,
         embedding_model: Optional[Any] = None,
         persist_directory: Optional[str] = None,

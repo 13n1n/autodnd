@@ -456,7 +456,7 @@
                 </div>
                 <div class="form-group">
                     <label for="baseUrl">Base URL</label>
-                    <input type="text" id="baseUrl" name="base_url" placeholder="http://localhost:11434/v1 (Ollama)">
+                    <input type="text" id="baseUrl" name="base_url" placeholder="http://localhost:11434/ (Ollama)">
                 </div>
                 <div class="form-group">
                     <label for="model">Model</label>
@@ -533,7 +533,7 @@
                     </div>
                     <div class="form-group">
                         <label for="securityBaseUrl">Base URL</label>
-                        <input type="text" id="securityBaseUrl" name="security_llm_config.base_url" placeholder="http://localhost:11434/v1 (Ollama)">
+                        <input type="text" id="securityBaseUrl" name="security_llm_config.base_url" placeholder="http://localhost:11434/ (Ollama)">
                     </div>
                     <div class="form-group">
                         <label for="securityModel">Model (cheaper model recommended)</label>
@@ -739,7 +739,7 @@
             
             if (provider === 'ollama') {
                 apiKeyGroup.style.display = 'none';
-                baseUrlInput.placeholder = 'http://localhost:11434/v1';
+                baseUrlInput.placeholder = 'http://localhost:11434/';
             } else {
                 apiKeyGroup.style.display = 'block';
                 baseUrlInput.placeholder = 'Leave empty for default OpenAI endpoint';
@@ -788,7 +788,7 @@
             
             if (provider === 'ollama') {
                 apiKeyGroup.style.display = 'none';
-                baseUrlInput.placeholder = 'http://localhost:11434/v1';
+                baseUrlInput.placeholder = 'http://localhost:11434/';
             } else {
                 apiKeyGroup.style.display = 'block';
                 baseUrlInput.placeholder = 'Leave empty for default OpenAI endpoint';

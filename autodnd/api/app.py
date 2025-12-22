@@ -10,6 +10,7 @@ from flask import Flask, jsonify, request, send_from_directory
 from werkzeug.exceptions import HTTPException
 
 from autodnd.agents.game_master import GameMasterAgent
+from autodnd.agents.orchestrator import AgentOrchestrator
 from autodnd.agents.tools import (
     create_get_inventory_tool,
     create_get_map_state_tool,
@@ -163,6 +164,16 @@ def _create_initial_game(
 
     engine = GameEngine(initial_state=initial_state)
     game_master = _setup_game_master(engine, game_master_prompt)
+    
+    # Create orchestrator
+    orchestrator = AgentOrchestrator(
+        game_master=game_master,
+        npc_agent=None,  # Can be added later if needed
+        rag_agent=None,  # Can be added later if needed
+        engine_getter=lambda: engine,
+    )
+    engine.set_orchestrator(orchestrator)
+    
     return engine, game_master
 
 
@@ -278,40 +289,22 @@ def submit_action(game_id: str):
     # Apply action
     new_state, success, error_msg = engine.apply_action(action)
 
-    # Get master response using game master agent
+    # Agent orchestration is now handled in GameEngine.apply_action()
+    # The orchestrator will log all messages (master, NPC, tools, system)
+    # Extract master response from the latest master message
     master_response = ""
-    game_master = _get_game_master(game_id)
-    if success and game_master:
-        # Get recent message history for context
-        recent_messages = [
-            {
-                "source": msg.source.value,
-                "content": msg.content,
-                "message_type": msg.message_type.value,
-            }
-            for msg in engine.state.message_history.messages[-10:]
-        ]
-
-        try:
-            master_response = game_master.process_action(action_text, recent_messages)
-            # Add master response to state
-            engine.add_message(
-                content=master_response,
-                source=MessageSource.MASTER,
-                message_type=MessageType.RESPONSE,
-            )
-            new_state = engine.state
-        except Exception as e:
-            app.logger.error(f"Error generating master response: {e}", exc_info=True)
-            # Add error message to state
-            engine.add_message(
-                content=f"Master encountered an error: {str(e)}. Please try again.",
-                source=MessageSource.SYSTEM,
-                message_type=MessageType.SYSTEM,
-                metadata={"error": str(e)},
-            )
-            master_response = "Master encountered an error processing your action."
-            new_state = engine.state
+    if success:
+        # Find the latest master response message
+        for msg in reversed(engine.state.message_history.messages):
+            if msg.source == MessageSource.MASTER and msg.message_type == MessageType.RESPONSE:
+                master_response = msg.content
+                break
+        
+        # Fallback if no master message found
+        if not master_response:
+            master_response = "Master acknowledges your action."
+        
+        new_state = engine.state
 
     return jsonify(
         {

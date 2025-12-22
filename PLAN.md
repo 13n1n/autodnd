@@ -459,27 +459,27 @@ class StateSnapshot(BaseModel):
 ### Phase 4: Agent Communication & State Passing
 
 13. **State Serialization for Agents**
-    - [ ] Create `StateSerializer` (serialize GameState to agent-readable format)
-    - [ ] Implement state subset extraction (only relevant data per agent)
-    - [ ] Create agent context builders (what each agent needs to see)
+    - [v] Create `StateSerializer` (serialize GameState to agent-readable format)
+    - [v] Implement state subset extraction (only relevant data per agent)
+    - [v] Create agent context builders (what each agent needs to see)
 
 14. **Agent Orchestration**
-    - [ ] Create `AgentOrchestrator` class
-    - [ ] Implement agent calling sequence (Game Master → NPC/RAG as needed)
-    - [ ] Implement state passing between agents (structured data only)
-    - [ ] Add error handling and retry logic
+    - [v] Create `AgentOrchestrator` class
+    - [v] Implement agent calling sequence (Game Master → NPC/RAG as needed)
+    - [v] Implement state passing between agents (structured data only)
+    - [v] Add error handling and retry logic
 
 15. **Agent Response Integration**
-    - [ ] Parse agent outputs into game actions
-    - [ ] Validate agent-suggested actions
-    - [ ] Apply agent decisions to game state
-    - [ ] Log ALL agent interactions as Messages in state
+    - [v] Parse agent outputs into game actions
+    - [v] Validate agent-suggested actions
+    - [v] Apply agent decisions to game state
+    - [v] Log ALL agent interactions as Messages in state
       - Game Master responses → Message(source="master")
       - NPC dialogue → Message(source="npc")
       - Tool outputs → Message(source="tool")
       - System messages → Message(source="system")
-    - [ ] Ensure message history is complete and ordered
-    - [ ] Handle agent errors gracefully (log as system messages)
+    - [v] Ensure message history is complete and ordered
+    - [v] Handle agent errors gracefully (log as system messages)
 
 ### Phase 5: Game Logic Integration
 

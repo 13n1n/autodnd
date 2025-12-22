@@ -4,6 +4,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
+from autodnd.agents.orchestrator import AgentOrchestrator
 from autodnd.engine.action_validator import ActionValidator
 from autodnd.engine.combat import CombatSystem
 from autodnd.engine.history import StateHistory
@@ -18,18 +19,22 @@ from autodnd.models.state import GameState
 class GameEngine:
     """Main state machine for game logic and progression."""
 
-    def __init__(self, initial_state: Optional[GameState] = None) -> None:
+    def __init__(
+        self, initial_state: Optional[GameState] = None, orchestrator: Optional[AgentOrchestrator] = None
+    ) -> None:
         """
         Initialize game engine.
 
         Args:
             initial_state: Optional initial game state
+            orchestrator: Optional agent orchestrator for agent interactions
         """
         if initial_state:
             self._state = initial_state
         else:
             self._state = self._create_initial_state()
         self._history = StateHistory()
+        self._orchestrator = orchestrator
         # Create initial snapshot
         self._history.create_snapshot(self._state, {"reason": "initial_state"})
 
@@ -50,6 +55,15 @@ class GameEngine:
     def history(self) -> StateHistory:
         """Get state history."""
         return self._history
+
+    @property
+    def orchestrator(self) -> Optional[AgentOrchestrator]:
+        """Get agent orchestrator."""
+        return self._orchestrator
+
+    def set_orchestrator(self, orchestrator: AgentOrchestrator) -> None:
+        """Set agent orchestrator."""
+        self._orchestrator = orchestrator
 
     def apply_action(self, action: Action) -> tuple[GameState, bool, str]:
         """
@@ -88,20 +102,45 @@ class GameEngine:
         # Update time
         new_time = TimeManager.advance_time(self._state.current_time, time_cost)
 
-        # Process action based on type (simplified - will be enhanced with agent integration)
-        # For now, we'll create a placeholder response
-        master_message = Message(
-            message_id=str(uuid.uuid4()),
-            timestamp=datetime.now(),
-            sequence_number=len(new_message_history.messages),
-            source=MessageSource.MASTER,
-            source_id=None,
-            content=f"Master acknowledges action: {action.action_type.value}",
-            message_type=MessageType.RESPONSE,
-            action_id=action.action_id,
-        )
+        # Process action with agent orchestrator if available
+        agent_messages: list[Message] = []
+        master_response = f"Master acknowledges action: {action.action_type.value}"
 
-        new_message_history = new_message_history.add_message(master_message)
+        if self._orchestrator:
+            # Extract action text from parameters
+            action_text = action.parameters.get("text", action.action_type.value)
+            
+            # Create temporary state with player message for orchestrator
+            temp_state = self._state.model_copy(update={"message_history": new_message_history})
+            
+            # Process through orchestrator
+            master_response, agent_messages = self._orchestrator.process_player_action(
+                action_text, temp_state, action.player_id
+            )
+            
+            # Add all agent messages to history
+            for msg in agent_messages:
+                # Update sequence numbers and action_id
+                updated_msg = msg.model_copy(
+                    update={
+                        "sequence_number": len(new_message_history.messages),
+                        "action_id": action.action_id,
+                    }
+                )
+                new_message_history = new_message_history.add_message(updated_msg)
+        else:
+            # Fallback: create placeholder master message
+            master_message = Message(
+                message_id=str(uuid.uuid4()),
+                timestamp=datetime.now(),
+                sequence_number=len(new_message_history.messages),
+                source=MessageSource.MASTER,
+                source_id=None,
+                content=master_response,
+                message_type=MessageType.RESPONSE,
+                action_id=action.action_id,
+            )
+            new_message_history = new_message_history.add_message(master_message)
 
         # Update players (recalculate stats if needed)
         updated_players = []

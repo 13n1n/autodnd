@@ -1,6 +1,6 @@
 """NPC Agent using LangChain for handling NPC dialogue and interactions."""
 
-from typing import Callable, Optional
+from typing import TYPE_CHECKING, Callable, Optional
 
 from langchain.agents import create_agent
 from langchain.chat_models import BaseChatModel
@@ -8,7 +8,8 @@ from langchain_core.tools import StructuredTool
 from langchain_openai import ChatOpenAI
 from langchain_ollama import ChatOllama
 
-from autodnd.engine.game_engine import GameEngine
+if TYPE_CHECKING:
+    from autodnd.engine.game_engine import GameEngine
 
 
 class NPCAgent:
@@ -18,7 +19,7 @@ class NPCAgent:
         self,
         llm: Optional[BaseChatModel] = None,
         tools: Optional[list[StructuredTool]] = None,
-        engine_getter: Optional[Callable[[], GameEngine]] = None,
+        engine_getter: Optional["Callable[[], GameEngine]"] = None,
     ) -> None:
         """
         Initialize NPC Agent.
