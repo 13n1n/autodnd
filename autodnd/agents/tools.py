@@ -44,6 +44,19 @@ class GetNPCInfoInput(BaseModel):
     coordinate_r: Optional[int] = Field(default=None, description="R coordinate where NPC is located")
 
 
+class StoreDataInput(BaseModel):
+    """Input for store data tool."""
+
+    key: str = Field(description="Key to store the value under")
+    value: str = Field(description="Value to store")
+
+
+class GetDataInput(BaseModel):
+    """Input for get data tool."""
+
+    key: str = Field(description="Key to retrieve the value for")
+
+
 def create_roll_dice_tool() -> StructuredTool:
     """Create roll dice tool."""
 
@@ -182,5 +195,40 @@ def create_get_npc_info_tool(state_getter) -> StructuredTool:
         name="get_npc_info",
         description="Get information about an NPC by npc_id. Optionally provide coordinates to search specific cell",
         args_schema=GetNPCInfoInput,
+    )
+
+
+def create_store_data_tool(state_getter, engine_updater) -> StructuredTool:
+    """Create store data tool for key-value storage."""
+
+    def store_data(key: str, value: str) -> dict:
+        """Store a key-value pair in persistent storage."""
+        state = state_getter()
+        engine_updater(key, value)
+        return {"success": True, "key": key, "message": f"Stored value for key '{key}'"}
+
+    return StructuredTool.from_function(
+        func=store_data,
+        name="store_data",
+        description="Store a key-value pair in persistent storage. Useful for storing hidden objectives, game notes, or other data that should persist across turns.",
+        args_schema=StoreDataInput,
+    )
+
+
+def create_get_data_tool(state_getter) -> StructuredTool:
+    """Create get data tool for key-value retrieval."""
+
+    def get_data(key: str) -> dict:
+        """Retrieve a value by key from persistent storage."""
+        state = state_getter()
+        if key in state.storage:
+            return {"success": True, "key": key, "value": state.storage[key]}
+        return {"success": False, "key": key, "error": f"Key '{key}' not found in storage"}
+
+    return StructuredTool.from_function(
+        func=get_data,
+        name="get_data",
+        description="Retrieve a value by key from persistent storage. Useful for retrieving hidden objectives, game notes, or other stored data.",
+        args_schema=GetDataInput,
     )
 

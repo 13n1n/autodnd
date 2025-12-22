@@ -50,6 +50,11 @@ class GameState(BaseModel):
         default_factory=GameMetadata, description="Settings, difficulty, etc."
     )
 
+    # Key-value storage for game master data (hidden objectives, notes, etc.)
+    storage: dict[str, str] = Field(
+        default_factory=dict, description="Key-value storage for persistent game data"
+    )
+
     def model_dump_json(self, **kwargs) -> str:
         """Serialize to JSON string."""
         return super().model_dump_json(**kwargs)

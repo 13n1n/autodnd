@@ -30,7 +30,7 @@ class TestSecurityConfig:
         config = SecurityConfig()
         llm_config = config.get_security_llm_config()
         assert isinstance(llm_config, LLMConfig)
-        assert llm_config.model == "qwen2.5:8b"
+        assert llm_config.model == "qwen3:8b"
         assert llm_config.temperature == 0.1
 
     def test_get_security_llm_config_custom(self):

@@ -13,7 +13,7 @@ class TestSecurityAgent:
         """Test that SecurityAgent can be initialized."""
         config = LLMConfig(
             provider="ollama",
-            model="qwen2.5:8b",
+            model="qwen3:8b",
             temperature=0.1,
             timeout=30,
         )

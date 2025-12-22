@@ -12,14 +12,17 @@ from werkzeug.exceptions import HTTPException
 from autodnd.agents.game_master import GameMasterAgent
 from autodnd.agents.orchestrator import AgentOrchestrator
 from autodnd.agents.tools import (
+    create_get_data_tool,
     create_get_inventory_tool,
     create_get_map_state_tool,
     create_get_player_stats_tool,
     create_roll_dice_tool,
+    create_store_data_tool,
 )
 from autodnd.api.llm_config import LLMConfig, LLMConfigManager
 from autodnd.api.security_config import SecurityConfig, SecurityConfigManager
 from autodnd.engine.game_engine import GameEngine
+from autodnd.persistence.state_dumper import StateDumper
 from autodnd.security.input_sanitizer import InputSanitizer
 from autodnd.security.security_agent import SecurityAgent
 from autodnd.models.actions import Action, ActionType, TimeCost
@@ -78,6 +81,10 @@ _security_config_manager = SecurityConfigManager()
 _security_agent: SecurityAgent | None = None
 _input_sanitizer = InputSanitizer()
 
+# State dumper for persisting game state to disk
+_dump_directory = os.getenv("AUTODND_DUMP_DIR", "/var/autodnd")
+_state_dumper = StateDumper(dump_directory=_dump_directory)
+
 
 def _get_security_agent() -> SecurityAgent | None:
     """Get or create security agent."""
@@ -88,6 +95,15 @@ def _get_security_agent() -> SecurityAgent | None:
             _security_agent = SecurityAgent(config=security_config)
         return _security_agent
     return None
+
+
+def _dump_game_state(state: GameState) -> None:
+    """Dump game state to disk."""
+    try:
+        # Dump state using new structure: {game_id}/v{version}.json
+        _state_dumper.dump_state(state)
+    except Exception as e:
+        app.logger.error(f"Failed to dump game state {state.game_id}: {e}", exc_info=True)
 
 
 def _get_game_engine(game_id: Optional[str] = None) -> Optional[GameEngine]:
@@ -113,16 +129,79 @@ def _setup_game_master(engine: GameEngine, custom_prompt: Optional[str] = None) 
     def state_getter():
         return engine.state
 
+    def engine_updater(key: str, value: str):
+        """Update storage in engine state."""
+        engine.update_storage(key, value)
+
     tools = [
         create_roll_dice_tool(),
         create_get_player_stats_tool(state_getter),
         create_get_inventory_tool(state_getter),
         create_get_map_state_tool(state_getter),
+        create_store_data_tool(state_getter, engine_updater),
+        create_get_data_tool(state_getter),
     ]
 
     llm = _llm_config_manager.get_llm()
     return GameMasterAgent(llm=llm, tools=tools, engine_getter=lambda: engine, system_prompt=custom_prompt)
 
+
+def _load_game_from_state(state: GameState) -> tuple[GameEngine, GameMasterAgent]:
+    """
+    Load a game from a saved state.
+
+    Args:
+        state: GameState to load
+
+    Returns:
+        Tuple of (GameEngine, GameMasterAgent)
+    """
+    # Extract game master prompt from metadata if available
+    game_master_prompt = None
+    if state.metadata.settings and "game_master_prompt" in state.metadata.settings:
+        game_master_prompt = state.metadata.settings["game_master_prompt"]
+
+    # Create engine with loaded state
+    engine = GameEngine(initial_state=state)
+    
+    # Setup game master
+    game_master = _setup_game_master(engine, game_master_prompt)
+    
+    # Create orchestrator
+    orchestrator = AgentOrchestrator(
+        game_master=game_master,
+        npc_agent=None,  # Can be added later if needed
+        rag_agent=None,  # Can be added later if needed
+        engine_getter=lambda: engine,
+    )
+    engine.set_orchestrator(orchestrator)
+    
+    return engine, game_master
+
+
+def _load_all_games_from_disk() -> None:
+    """Load all games from disk at startup."""
+    try:
+        app.logger.info("Loading games from disk...")
+        loaded_games = _state_dumper.load_all_games()
+        
+        for game_id, state in loaded_games.items():
+            try:
+                engine, game_master = _load_game_from_state(state)
+                _games[game_id] = (engine, game_master)
+                app.logger.info(f"Successfully loaded game {game_id} (version {state.state_version})")
+            except Exception as e:
+                app.logger.error(f"Failed to restore game {game_id}: {e}", exc_info=True)
+                # Continue loading other games on exception
+        
+        app.logger.info(f"Loaded {len(loaded_games)} game(s) from disk")
+    except Exception as e:
+        app.logger.error(f"Error loading games from disk: {e}", exc_info=True)
+        # Don't raise - allow app to start even if loading fails
+
+
+# Load all games from disk at startup
+_load_all_games_from_disk()
 
 def _create_initial_game(
     difficulty: Optional[str] = None,
@@ -202,6 +281,9 @@ def _create_initial_game(
             metadata={"is_initial_intro": True, "error": str(e)},
         )
     
+    # Dump initial game state
+    _dump_game_state(engine.state)
+    
     return engine, game_master
 
 
@@ -209,7 +291,7 @@ def _create_initial_game(
 def list_games():
     """List all games."""
     games = []
-    for game_id, (engine, _) in _games.items():
+    for game_id, (engine, *_) in _games.items():
         games.append({
             "game_id": game_id,
             "created_at": engine.state.created_at.isoformat(),
@@ -333,6 +415,9 @@ def submit_action(game_id: str):
             master_response = "Master acknowledges your action."
         
         new_state = engine.state
+        
+        # Dump updated game state to disk
+        _dump_game_state(new_state)
 
     return jsonify(
         {
@@ -394,6 +479,8 @@ def revert_to_snapshot(game_id: str):
     success, error_msg = engine.revert_to(snapshot_index)
 
     if success:
+        # Dump reverted game state to disk
+        _dump_game_state(engine.state)
         return jsonify({"success": True, "state": _serialize_state_for_api(engine.state)})
     else:
         return jsonify({"success": False, "error": error_msg}), 400

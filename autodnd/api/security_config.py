@@ -28,7 +28,7 @@ class SecurityConfig(BaseModel):
         # Default to cheaper model
         return LLMConfig(
             provider="ollama",
-            model="qwen2.5:8b",  # Cheaper model for security
+            model="qwen3:8b",  # Cheaper model for security
             temperature=0.1,
             timeout=30,
         )

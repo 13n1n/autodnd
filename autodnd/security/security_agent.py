@@ -44,7 +44,7 @@ class SecurityAgent:
         if config is None:
             config = LLMConfig(
                 provider="ollama",
-                model="qwen2.5:8b",  # Cheaper model for security validation
+                model="qwen3:8b",  # Cheaper model for security validation
                 temperature=0.1,  # Low temperature for consistent validation
                 timeout=30,  # Shorter timeout for security checks
             )

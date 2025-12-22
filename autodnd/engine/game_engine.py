@@ -260,3 +260,36 @@ class GameEngine:
         self._state = new_state
         return new_state
 
+    def update_storage(self, key: str, value: str) -> GameState:
+        """
+        Update storage in game state.
+
+        Args:
+            key: Storage key
+            value: Storage value
+
+        Returns:
+            New game state with storage updated
+        """
+        new_storage = {**self._state.storage, key: value}
+        new_state = self._state.model_copy(
+            update={
+                "state_version": self._state.state_version + 1,
+                "storage": new_storage,
+            }
+        )
+        self._state = new_state
+        return new_state
+
+    def get_storage(self, key: str) -> Optional[str]:
+        """
+        Get value from storage.
+
+        Args:
+            key: Storage key
+
+        Returns:
+            Storage value or None if not found
+        """
+        return self._state.storage.get(key)
+
