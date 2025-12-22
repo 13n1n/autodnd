@@ -1,5 +1,6 @@
 """LangChain tools for game agents."""
 
+import logging
 from typing import Optional
 
 from langchain_core.tools import StructuredTool
@@ -7,6 +8,8 @@ from pydantic import BaseModel, Field
 
 from autodnd.engine.dice import DiceRoller
 from autodnd.models.state import GameState
+
+logger = logging.getLogger(__name__)
 
 
 class RollDiceInput(BaseModel):
@@ -62,7 +65,10 @@ def create_roll_dice_tool() -> StructuredTool:
 
     def roll_dice(dice_type: int, modifier: int = 0, count: int = 1) -> dict:
         """Roll DnD dice with optional modifier and count."""
-        return DiceRoller.roll(dice_type, modifier, count)
+        logger.info(f"Tool called: roll_dice(dice_type={dice_type}, modifier={modifier}, count={count})")
+        result = DiceRoller.roll(dice_type, modifier, count)
+        logger.debug(f"roll_dice result: {result}")
+        return result
 
     return StructuredTool.from_function(
         func=roll_dice,
@@ -77,12 +83,14 @@ def create_get_player_stats_tool(state_getter) -> StructuredTool:
 
     def get_player_stats(player_id: str) -> dict:
         """Get player stats from current game state."""
+        logger.info(f"Tool called: get_player_stats(player_id={player_id})")
         state: GameState = state_getter()
         player = next((p for p in state.players if p.player_id == player_id), None)
         if not player:
+            logger.warning(f"Player {player_id} not found")
             return {"error": f"Player {player_id} not found"}
 
-        return {
+        result = {
             "player_id": player.player_id,
             "name": player.name,
             "level": player.level,
@@ -92,6 +100,8 @@ def create_get_player_stats_tool(state_getter) -> StructuredTool:
             "is_alive": player.is_alive,
             "status_conditions": player.status_conditions,
         }
+        logger.debug(f"get_player_stats result for {player_id}: level={player.level}, stats={player.current_stats.model_dump()}")
+        return result
 
     return StructuredTool.from_function(
         func=get_player_stats,
@@ -106,15 +116,19 @@ def create_get_inventory_tool(state_getter) -> StructuredTool:
 
     def get_inventory(player_id: str) -> dict:
         """Get player inventory from current game state."""
+        logger.info(f"Tool called: get_inventory(player_id={player_id})")
         state: GameState = state_getter()
         player = next((p for p in state.players if p.player_id == player_id), None)
         if not player:
+            logger.warning(f"Player {player_id} not found")
             return {"error": f"Player {player_id} not found"}
 
-        return {
+        result = {
             "player_id": player.player_id,
             "inventory": player.inventory.model_dump(),
         }
+        logger.debug(f"get_inventory result for {player_id}: {len(player.inventory.bags)} bags")
+        return result
 
     return StructuredTool.from_function(
         func=get_inventory,
@@ -129,6 +143,7 @@ def create_get_map_state_tool(state_getter) -> StructuredTool:
 
     def get_map_state(coordinate_q: Optional[int] = None, coordinate_r: Optional[int] = None) -> dict:
         """Get map state from current game state."""
+        logger.info(f"Tool called: get_map_state(coordinate_q={coordinate_q}, coordinate_r={coordinate_r})")
         state: GameState = state_getter()
 
         if coordinate_q is not None and coordinate_r is not None:
@@ -137,14 +152,18 @@ def create_get_map_state_tool(state_getter) -> StructuredTool:
             coord = HexCoordinate(q=coordinate_q, r=coordinate_r)
             cell = state.world_map.get_cell(coord)
             if cell:
+                logger.debug(f"get_map_state: Found cell at ({coordinate_q}, {coordinate_r})")
                 return {"cell": cell.model_dump()}
+            logger.warning(f"Cell at ({coordinate_q}, {coordinate_r}) not found")
             return {"error": f"Cell at ({coordinate_q}, {coordinate_r}) not found"}
 
         # Return overall map info
-        return {
+        result = {
             "total_cells": len(state.world_map.cells),
             "cells": [cell.model_dump() for cell in state.world_map.cells.values()],
         }
+        logger.debug(f"get_map_state: Returning {result['total_cells']} cells")
+        return result
 
     return StructuredTool.from_function(
         func=get_map_state,
@@ -159,6 +178,7 @@ def create_get_npc_info_tool(state_getter) -> StructuredTool:
 
     def get_npc_info(npc_id: str, coordinate_q: Optional[int] = None, coordinate_r: Optional[int] = None) -> dict:
         """Get NPC information from current game state."""
+        logger.info(f"Tool called: get_npc_info(npc_id={npc_id}, coordinate_q={coordinate_q}, coordinate_r={coordinate_r})")
         state: GameState = state_getter()
 
         # Search for NPC in map cells
@@ -182,13 +202,16 @@ def create_get_npc_info_tool(state_getter) -> StructuredTool:
                     break
 
         if not npc_found:
+            logger.warning(f"NPC {npc_id} not found in current game state")
             return {"error": f"NPC {npc_id} not found in current game state"}
 
-        return {
+        result = {
             "npc_id": npc_id,
             "location": npc_location,
             "found": True,
         }
+        logger.debug(f"get_npc_info result: NPC {npc_id} found at {npc_location}")
+        return result
 
     return StructuredTool.from_function(
         func=get_npc_info,
@@ -203,9 +226,12 @@ def create_store_data_tool(state_getter, engine_updater) -> StructuredTool:
 
     def store_data(key: str, value: str) -> dict:
         """Store a key-value pair in persistent storage."""
+        logger.info(f"Tool called: store_data(key={key}, value_length={len(value)})")
         state = state_getter()
         engine_updater(key, value)
-        return {"success": True, "key": key, "message": f"Stored value for key '{key}'"}
+        result = {"success": True, "key": key, "message": f"Stored value for key '{key}'"}
+        logger.debug(f"store_data: Stored data for key '{key}'")
+        return result
 
     return StructuredTool.from_function(
         func=store_data,
@@ -220,9 +246,13 @@ def create_get_data_tool(state_getter) -> StructuredTool:
 
     def get_data(key: str) -> dict:
         """Retrieve a value by key from persistent storage."""
+        logger.info(f"Tool called: get_data(key={key})")
         state = state_getter()
         if key in state.storage:
-            return {"success": True, "key": key, "value": state.storage[key]}
+            result = {"success": True, "key": key, "value": state.storage[key]}
+            logger.debug(f"get_data: Found data for key '{key}', value_length={len(str(result['value']))}")
+            return result
+        logger.warning(f"Key '{key}' not found in storage")
         return {"success": False, "key": key, "error": f"Key '{key}' not found in storage"}
 
     return StructuredTool.from_function(

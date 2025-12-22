@@ -8,6 +8,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.tools import StructuredTool
 from langchain_openai import ChatOpenAI
 from langchain_ollama import ChatOllama
+from langgraph.graph.state import CompiledStateGraph
 
 from autodnd.models.messages import MessageSource, MessageType
 
@@ -38,7 +39,7 @@ class GameMasterAgent:
         self._llm = llm or self._create_default_llm()
         self._tools = tools or []
         self._custom_prompt = system_prompt
-        self._agent = None
+        self._agent: CompiledStateGraph | None = None
         self._build_agent()
 
     def _create_default_llm(self) -> ChatOllama:

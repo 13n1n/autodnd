@@ -148,10 +148,43 @@
         }
 
         .message.tool {
-            background: rgba(100, 100, 100, 0.15);
-            border-left: 3px solid #646464;
+            background: rgba(155, 89, 182, 0.15);
+            border-left: 3px solid #9b59b6;
             align-self: flex-start;
-            font-size: 0.9em;
+            font-size: 0.75em;
+        }
+        
+        .tool-spoiler-toggle {
+            background: rgba(155, 89, 182, 0.2);
+            border: 1px solid rgba(155, 89, 182, 0.4);
+            color: #d8b3e8;
+            padding: 0.4rem 0.8rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85em;
+            width: 100%;
+            text-align: left;
+            margin-top: 0.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .tool-spoiler-toggle:hover {
+            background: rgba(155, 89, 182, 0.3);
+            border-color: rgba(155, 89, 182, 0.6);
+        }
+        
+        .tool-spoiler-content {
+            display: none;
+            margin-top: 0.5rem;
+            padding: 0.5rem;
+            background: rgba(155, 89, 182, 0.1);
+            border-radius: 4px;
+        }
+        
+        .tool-spoiler-content.show {
+            display: block;
         }
 
         .message.system {
@@ -723,21 +756,48 @@
                 }
                 
                 messageDiv.appendChild(header);
-                messageDiv.appendChild(content);
                 
-                // Add details toggle for tool messages (spoiler)
+                // For tool messages, wrap content in spoiler
                 if (msg.source === 'tool') {
-                    const toggle = document.createElement('button');
-                    toggle.className = 'details-toggle';
-                    toggle.textContent = 'Show Details';
-                    toggle.onclick = () => toggleDetails(messageDiv);
+                    const spoilerToggle = document.createElement('button');
+                    spoilerToggle.className = 'tool-spoiler-toggle';
+                    spoilerToggle.type = 'button';
+                    const toggleText = document.createElement('span');
+                    toggleText.textContent = `🔧 Tool: ${msg.source_id || 'Unknown Tool'}`;
+                    const toggleArrow = document.createElement('span');
+                    toggleArrow.textContent = '▼';
+                    toggleArrow.className = 'tool-spoiler-arrow';
+                    spoilerToggle.appendChild(toggleText);
+                    spoilerToggle.appendChild(toggleArrow);
                     
-                    const details = document.createElement('div');
-                    details.className = 'message-details';
-                    details.innerHTML = `<pre>${JSON.stringify(msg.metadata || {}, null, 2)}</pre>`;
+                    const spoilerContent = document.createElement('div');
+                    spoilerContent.className = 'tool-spoiler-content';
+                    spoilerContent.appendChild(content);
                     
-                    messageDiv.appendChild(toggle);
-                    messageDiv.appendChild(details);
+                    // Add metadata if available
+                    if (msg.metadata && Object.keys(msg.metadata).length > 0) {
+                        const metadataDiv = document.createElement('div');
+                        metadataDiv.style.marginTop = '0.5rem';
+                        metadataDiv.style.paddingTop = '0.5rem';
+                        metadataDiv.style.borderTop = '1px solid rgba(155, 89, 182, 0.3)';
+                        metadataDiv.innerHTML = `<pre style="font-size: 0.9em; margin: 0;">${JSON.stringify(msg.metadata, null, 2)}</pre>`;
+                        spoilerContent.appendChild(metadataDiv);
+                    }
+                    
+                    spoilerToggle.onclick = () => {
+                        if (spoilerContent.classList.contains('show')) {
+                            spoilerContent.classList.remove('show');
+                            toggleArrow.textContent = '▼';
+                        } else {
+                            spoilerContent.classList.add('show');
+                            toggleArrow.textContent = '▲';
+                        }
+                    };
+                    
+                    messageDiv.appendChild(spoilerToggle);
+                    messageDiv.appendChild(spoilerContent);
+                } else {
+                    messageDiv.appendChild(content);
                 }
                 
                 container.appendChild(messageDiv);

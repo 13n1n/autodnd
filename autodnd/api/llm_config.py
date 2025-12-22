@@ -53,7 +53,7 @@ class LLMConfigManager:
             "model": self._config.model,
             "temperature": self._config.temperature,
             "timeout": self._config.timeout,
-            "num_ctx": 2**15,
+            "num_ctx": 2**14,
         }
 
         if self._config.max_tokens:

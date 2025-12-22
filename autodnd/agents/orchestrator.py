@@ -194,13 +194,14 @@ class AgentOrchestrator:
                             else:
                                 tool_name = getattr(tool_call, "name", "unknown")
                                 tool_args = getattr(tool_call, "args", {})
-                            
+
                             # Create tool call message
                             tool_call_msg = self._create_message(
                                 content=f"Tool call: {tool_name}({tool_args})",
                                 source=MessageSource.TOOL,
                                 message_type=MessageType.TOOL_OUTPUT,
                                 sequence_number=sequence,
+                                source_id=tool_name,
                                 tool_name=tool_name,
                                 metadata={"tool_call": str(tool_call), "tool_args": tool_args},
                             )
@@ -221,10 +222,11 @@ class AgentOrchestrator:
                         # This is a tool result
                         content_str = str(tool_content)
                         tool_result_msg = self._create_message(
-                            content=content_str[:500] if len(content_str) > 500 else content_str,
+                            content=content_str,
                             source=MessageSource.TOOL,
                             message_type=MessageType.TOOL_OUTPUT,
                             sequence_number=sequence,
+                            source_id=tool_name_attr,
                             tool_name=tool_name_attr,
                             metadata={"tool_result": True},
                         )
@@ -472,6 +474,7 @@ class AgentOrchestrator:
                 source=MessageSource.TOOL,
                 message_type=MessageType.TOOL_OUTPUT,
                 sequence_number=sequence_number,
+                source_id="query_lore",
                 tool_name="query_lore",
                 metadata={"query": query, "context": rag_context},
             )
