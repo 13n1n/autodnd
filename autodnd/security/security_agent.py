@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 from autodnd.api.llm_config import LLMConfig, LLMConfigManager
 from autodnd.config import (
-    DEFAULT_LLM_BASE_URL,
+    DEFAULT_OLLAMA_BASE_URL,
     DEFAULT_LLM_PROVIDER,
     DEFAULT_SECURITY_LLM_MODEL,
     DEFAULT_SECURITY_LLM_TEMPERATURE,
@@ -54,7 +54,7 @@ class SecurityAgent:
                 model=DEFAULT_SECURITY_LLM_MODEL,  # Cheaper model for security validation
                 temperature=DEFAULT_SECURITY_LLM_TEMPERATURE,  # Low temperature for consistent validation
                 timeout=DEFAULT_SECURITY_LLM_TIMEOUT,  # Shorter timeout for security checks
-                base_url=DEFAULT_LLM_BASE_URL,
+                base_url=DEFAULT_OLLAMA_BASE_URL,
             )
 
         if llm is None:

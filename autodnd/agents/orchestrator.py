@@ -170,6 +170,7 @@ class AgentOrchestrator:
 
             # Invoke agent
             result = self._game_master._agent.invoke({"messages": messages})
+            logger.info(f"Game Master result: {result}")
 
             # Extract tool calls and outputs from agent messages
             if result.get("messages"):

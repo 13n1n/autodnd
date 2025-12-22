@@ -13,7 +13,7 @@ from langgraph.graph.state import CompiledStateGraph
 from autodnd.config import (
     DEFAULT_GAME_MASTER_MESSAGE_HISTORY_LIMIT,
     DEFAULT_GAME_MASTER_TEMPERATURE,
-    DEFAULT_LLM_BASE_URL,
+    DEFAULT_OLLAMA_BASE_URL,
     DEFAULT_LLM_MODEL,
     DEFAULT_LLM_NUM_CTX,
 )
@@ -54,7 +54,7 @@ class GameMasterAgent:
         return ChatOllama(
             model=DEFAULT_LLM_MODEL,
             temperature=DEFAULT_GAME_MASTER_TEMPERATURE,
-            base_url=DEFAULT_LLM_BASE_URL.rstrip("/"),  # Remove trailing slash for consistency
+            base_url=DEFAULT_OLLAMA_BASE_URL.rstrip("/"),  # Remove trailing slash for consistency
             num_ctx=DEFAULT_LLM_NUM_CTX,
         )
 

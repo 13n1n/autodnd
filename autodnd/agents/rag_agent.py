@@ -18,7 +18,7 @@ from autodnd.config import (
     DEFAULT_CHROMADB_ANONYMIZED_TELEMETRY,
     DEFAULT_EMBEDDING_FALLBACK_MODEL,
     DEFAULT_EMBEDDING_MODEL,
-    DEFAULT_LLM_BASE_URL,
+    DEFAULT_OLLAMA_BASE_URL,
     DEFAULT_LLM_MODEL,
     DEFAULT_LLM_NUM_CTX,
     DEFAULT_RAG_AGENT_TEMPERATURE,
@@ -93,7 +93,7 @@ class RAGAgent:
         return ChatOllama(
             model=DEFAULT_LLM_MODEL,
             temperature=DEFAULT_RAG_AGENT_TEMPERATURE,
-            base_url=DEFAULT_LLM_BASE_URL.rstrip("/"),  # Remove trailing slash for consistency
+            base_url=DEFAULT_OLLAMA_BASE_URL.rstrip("/"),  # Remove trailing slash for consistency
             num_ctx=DEFAULT_LLM_NUM_CTX,
         )
 
@@ -102,7 +102,7 @@ class RAGAgent:
         try:
             return OllamaEmbeddings(
                 model=DEFAULT_EMBEDDING_MODEL,
-                base_url=DEFAULT_LLM_BASE_URL.rstrip("/"),  # Remove trailing slash for consistency
+                base_url=DEFAULT_OLLAMA_BASE_URL.rstrip("/"),  # Remove trailing slash for consistency
             )
         except Exception as e:
             logger.warning(f"Failed to create Ollama embeddings: {e}. Using fallback.")
@@ -110,7 +110,7 @@ class RAGAgent:
             try:
                 return OllamaEmbeddings(
                     model=DEFAULT_EMBEDDING_FALLBACK_MODEL,
-                    base_url=DEFAULT_LLM_BASE_URL.rstrip("/"),  # Remove trailing slash for consistency
+                    base_url=DEFAULT_OLLAMA_BASE_URL.rstrip("/"),  # Remove trailing slash for consistency
                 )
             except Exception:
                 logger.error("Failed to create embedding model. RAG functionality may be limited.")

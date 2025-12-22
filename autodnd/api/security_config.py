@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 from autodnd.api.llm_config import LLMConfig
 from autodnd.config import (
-    DEFAULT_LLM_BASE_URL,
+    DEFAULT_OLLAMA_BASE_URL,
     DEFAULT_LLM_PROVIDER,
     DEFAULT_SECURITY_ENABLED,
     DEFAULT_SECURITY_LLM_MODEL,
@@ -49,7 +49,7 @@ class SecurityConfig(BaseModel):
             model=DEFAULT_SECURITY_LLM_MODEL,  # Cheaper model for security
             temperature=DEFAULT_SECURITY_LLM_TEMPERATURE,
             timeout=DEFAULT_SECURITY_LLM_TIMEOUT,
-            base_url=DEFAULT_LLM_BASE_URL,
+            base_url=DEFAULT_OLLAMA_BASE_URL,
         )
 
 

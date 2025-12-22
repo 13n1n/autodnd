@@ -1,9 +1,16 @@
 """Central configuration defaults and constants for AutoDnD."""
 
 # LLM Provider Defaults
-DEFAULT_LLM_PROVIDER = "ollama"
-DEFAULT_LLM_BASE_URL = "http://localhost:11434/"
+DEFAULT_LLM_PROVIDER = "openai"
+DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434/"
+DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1"
+DEFAULT_OPENAI_BASE_URL = "https://rest-assistant.api.cloud.yandex.net/v1"
+DEFAULT_OPENAI_BASE_URL = "https://bothub.chat/api/v2/openai/v1"
+DEFAULT_OPENAI_API_KEY = "AQVNxeaH45juRTCoVeV9SgEUYznR0XnmS-TZu2gI" # yandex api key
+DEFAULT_OPENAI_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImQ1Njg0MTUwLTdmOTgtNGM5Ni05MmVkLTQ3NWU2YWU4YjU1MiIsImlzRGV2ZWxvcGVyIjp0cnVlLCJpYXQiOjE3NjY0MjkyNDgsImV4cCI6MjA4MjAwNTI0OH0.o7oARJJ6j0M3X66Iv5_9RHXAyDeLMWWhxPkBjCG1DxQ"
 DEFAULT_LLM_MODEL = "gpt-oss:20b"
+DEFAULT_LLM_MODEL = "gpt://b1ginp39k6qehsh936oh/gpt-oss-20b/latest"
+DEFAULT_LLM_MODEL = "gpt-oss-120b"
 DEFAULT_LLM_TEMPERATURE = 0.7
 DEFAULT_LLM_TIMEOUT = 60
 DEFAULT_LLM_NUM_CTX = 2**14  # 16384 tokens context window

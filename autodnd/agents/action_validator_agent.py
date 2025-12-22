@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 
 from autodnd.config import (
     DEFAULT_ACTION_VALIDATOR_TEMPERATURE,
-    DEFAULT_LLM_BASE_URL,
+    DEFAULT_OLLAMA_BASE_URL,
     DEFAULT_LLM_MODEL,
     DEFAULT_LLM_NUM_CTX,
 )
@@ -57,7 +57,7 @@ class ActionValidatorAgent:
         return ChatOllama(
             model=DEFAULT_LLM_MODEL,
             temperature=DEFAULT_ACTION_VALIDATOR_TEMPERATURE,  # Low temperature for consistent validation
-            base_url=DEFAULT_LLM_BASE_URL.rstrip("/"),  # Remove trailing slash for consistency
+            base_url=DEFAULT_OLLAMA_BASE_URL.rstrip("/"),  # Remove trailing slash for consistency
             num_ctx=DEFAULT_LLM_NUM_CTX,
         )
 

@@ -9,7 +9,7 @@ dependencies = [
     "langchain>=1.2.0",
     "langchain-core",
     "langchain-community",
-    "langchain-openai",
+    "langchain-openai==1.0.1",
     "pydantic",
     "waitress>=3.0.2",
     "langchain-ollama>=1.0.1",
