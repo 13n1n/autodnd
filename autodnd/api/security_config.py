@@ -5,16 +5,34 @@ from typing import Literal, Optional
 from pydantic import BaseModel, Field
 
 from autodnd.api.llm_config import LLMConfig
+from autodnd.config import (
+    DEFAULT_LLM_BASE_URL,
+    DEFAULT_LLM_PROVIDER,
+    DEFAULT_SECURITY_ENABLED,
+    DEFAULT_SECURITY_LLM_MODEL,
+    DEFAULT_SECURITY_LLM_TEMPERATURE,
+    DEFAULT_SECURITY_LLM_TIMEOUT,
+    DEFAULT_SECURITY_MAX_INPUT_LENGTH,
+    DEFAULT_SECURITY_USE_LLM_VALIDATION,
+)
 
 
 class SecurityConfig(BaseModel):
     """Security layer configuration."""
 
-    enabled: bool = Field(default=True, description="Whether security layer is enabled")
-    use_llm_validation: bool = Field(
-        default=True, description="Whether to use LLM-based validation (cheaper model)"
+    enabled: bool = Field(
+        default=DEFAULT_SECURITY_ENABLED, description="Whether security layer is enabled"
     )
-    max_input_length: int = Field(default=1000, ge=1, le=10000, description="Maximum input length")
+    use_llm_validation: bool = Field(
+        default=DEFAULT_SECURITY_USE_LLM_VALIDATION,
+        description="Whether to use LLM-based validation (cheaper model)",
+    )
+    max_input_length: int = Field(
+        default=DEFAULT_SECURITY_MAX_INPUT_LENGTH,
+        ge=1,
+        le=10000,
+        description="Maximum input length",
+    )
     security_llm_config: Optional[LLMConfig] = Field(
         default=None,
         description="LLM config for security agent (uses cheaper model by default)",
@@ -27,10 +45,11 @@ class SecurityConfig(BaseModel):
 
         # Default to cheaper model
         return LLMConfig(
-            provider="ollama",
-            model="qwen3:8b",  # Cheaper model for security
-            temperature=0.1,
-            timeout=30,
+            provider=DEFAULT_LLM_PROVIDER,
+            model=DEFAULT_SECURITY_LLM_MODEL,  # Cheaper model for security
+            temperature=DEFAULT_SECURITY_LLM_TEMPERATURE,
+            timeout=DEFAULT_SECURITY_LLM_TIMEOUT,
+            base_url=DEFAULT_LLM_BASE_URL,
         )
 
 

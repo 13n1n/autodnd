@@ -9,6 +9,12 @@ from langchain_openai import ChatOpenAI
 from langchain_ollama import ChatOllama
 from pydantic import BaseModel, Field
 
+from autodnd.config import (
+    DEFAULT_ACTION_VALIDATOR_TEMPERATURE,
+    DEFAULT_LLM_BASE_URL,
+    DEFAULT_LLM_MODEL,
+    DEFAULT_LLM_NUM_CTX,
+)
 from autodnd.engine.action_validator import ActionValidator
 from autodnd.models.actions import Action
 
@@ -49,10 +55,10 @@ class ActionValidatorAgent:
     def _create_default_llm(self) -> ChatOllama:
         """Create default LLM instance."""
         return ChatOllama(
-            model="gpt-oss:20b",
-            temperature=0.1,  # Low temperature for consistent validation
-            base_url="http://localhost:11434",
-            num_ctx=2**15,
+            model=DEFAULT_LLM_MODEL,
+            temperature=DEFAULT_ACTION_VALIDATOR_TEMPERATURE,  # Low temperature for consistent validation
+            base_url=DEFAULT_LLM_BASE_URL.rstrip("/"),  # Remove trailing slash for consistency
+            num_ctx=DEFAULT_LLM_NUM_CTX,
         )
 
     def _build_agent(self) -> None:

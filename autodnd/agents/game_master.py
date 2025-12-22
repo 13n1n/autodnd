@@ -10,6 +10,13 @@ from langchain_openai import ChatOpenAI
 from langchain_ollama import ChatOllama
 from langgraph.graph.state import CompiledStateGraph
 
+from autodnd.config import (
+    DEFAULT_GAME_MASTER_MESSAGE_HISTORY_LIMIT,
+    DEFAULT_GAME_MASTER_TEMPERATURE,
+    DEFAULT_LLM_BASE_URL,
+    DEFAULT_LLM_MODEL,
+    DEFAULT_LLM_NUM_CTX,
+)
 from autodnd.models.messages import MessageSource, MessageType
 
 if TYPE_CHECKING:
@@ -45,10 +52,10 @@ class GameMasterAgent:
     def _create_default_llm(self) -> ChatOllama:
         """Create default LLM instance."""
         return ChatOllama(
-            model="gpt-oss:20b",
-            temperature=0.4,
-            base_url="http://localhost:11434",
-            num_ctx=2**15,
+            model=DEFAULT_LLM_MODEL,
+            temperature=DEFAULT_GAME_MASTER_TEMPERATURE,
+            base_url=DEFAULT_LLM_BASE_URL.rstrip("/"),  # Remove trailing slash for consistency
+            num_ctx=DEFAULT_LLM_NUM_CTX,
         )
 
     def _build_agent(self) -> None:
@@ -110,7 +117,7 @@ Be polite and friendly. Also, here some requests from player:
         """
         # Convert message history to LangChain message format
         messages = []
-        for msg in message_history[-10:]:  # Last 10 messages for context
+        for msg in message_history[-DEFAULT_GAME_MASTER_MESSAGE_HISTORY_LIMIT:]:  # Last N messages for context
             if msg["source"] == "player":
                 messages.append({"role": "user", "content": msg["content"]})
             elif msg["source"] == "master":

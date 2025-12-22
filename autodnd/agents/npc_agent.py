@@ -8,6 +8,14 @@ from langchain_core.tools import StructuredTool
 from langchain_openai import ChatOpenAI
 from langchain_ollama import ChatOllama
 
+from autodnd.config import (
+    DEFAULT_LLM_BASE_URL,
+    DEFAULT_LLM_MODEL,
+    DEFAULT_LLM_NUM_CTX,
+    DEFAULT_NPC_AGENT_MESSAGE_HISTORY_LIMIT,
+    DEFAULT_NPC_AGENT_TEMPERATURE,
+)
+
 if TYPE_CHECKING:
     from autodnd.engine.game_engine import GameEngine
 
@@ -38,10 +46,10 @@ class NPCAgent:
     def _create_default_llm(self) -> ChatOllama:
         """Create default LLM instance."""
         return ChatOllama(
-            model="gpt-oss:20b",
-            temperature=0.7,  # Higher temperature for more varied NPC personalities
-            base_url="http://localhost:11434",
-            num_ctx=2**15,
+            model=DEFAULT_LLM_MODEL,
+            temperature=DEFAULT_NPC_AGENT_TEMPERATURE,  # Higher temperature for more varied NPC personalities
+            base_url=DEFAULT_LLM_BASE_URL.rstrip("/"),  # Remove trailing slash for consistency
+            num_ctx=DEFAULT_LLM_NUM_CTX,
         )
 
     def _build_agent(self) -> None:
@@ -115,7 +123,7 @@ Personality and Background:
 
         # Add recent message history for context
         if message_history:
-            for msg in message_history[-5:]:  # Last 5 messages for context
+            for msg in message_history[-DEFAULT_NPC_AGENT_MESSAGE_HISTORY_LIMIT:]:  # Last N messages for context
                 if msg.get("source") == "player":
                     messages.append({"role": "user", "content": msg.get("content", "")})
                 elif msg.get("source") == "npc" and msg.get("source_id") == npc_id:

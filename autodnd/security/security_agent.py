@@ -8,6 +8,13 @@ from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 
 from autodnd.api.llm_config import LLMConfig, LLMConfigManager
+from autodnd.config import (
+    DEFAULT_LLM_BASE_URL,
+    DEFAULT_LLM_PROVIDER,
+    DEFAULT_SECURITY_LLM_MODEL,
+    DEFAULT_SECURITY_LLM_TEMPERATURE,
+    DEFAULT_SECURITY_LLM_TIMEOUT,
+)
 from autodnd.security.output_validator import OutputValidator
 from autodnd.security.prompt_builder import PromptBuilder
 
@@ -43,10 +50,11 @@ class SecurityAgent:
         # Default to cheaper model if not provided
         if config is None:
             config = LLMConfig(
-                provider="ollama",
-                model="qwen3:8b",  # Cheaper model for security validation
-                temperature=0.1,  # Low temperature for consistent validation
-                timeout=30,  # Shorter timeout for security checks
+                provider=DEFAULT_LLM_PROVIDER,
+                model=DEFAULT_SECURITY_LLM_MODEL,  # Cheaper model for security validation
+                temperature=DEFAULT_SECURITY_LLM_TEMPERATURE,  # Low temperature for consistent validation
+                timeout=DEFAULT_SECURITY_LLM_TIMEOUT,  # Shorter timeout for security checks
+                base_url=DEFAULT_LLM_BASE_URL,
             )
 
         if llm is None:

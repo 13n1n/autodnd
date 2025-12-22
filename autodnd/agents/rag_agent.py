@@ -13,6 +13,20 @@ from langchain_core.tools import StructuredTool
 from langchain_ollama import ChatOllama
 from pydantic import BaseModel, Field
 
+from autodnd.config import (
+    DEFAULT_CHROMADB_ALLOW_RESET,
+    DEFAULT_CHROMADB_ANONYMIZED_TELEMETRY,
+    DEFAULT_EMBEDDING_FALLBACK_MODEL,
+    DEFAULT_EMBEDDING_MODEL,
+    DEFAULT_LLM_BASE_URL,
+    DEFAULT_LLM_MODEL,
+    DEFAULT_LLM_NUM_CTX,
+    DEFAULT_RAG_AGENT_TEMPERATURE,
+    DEFAULT_RAG_ALLOWED_CATEGORIES,
+    DEFAULT_RAG_COLLECTION_NAME,
+    DEFAULT_RAG_SIMILARITY_SEARCH_K,
+)
+
 # Try to import OllamaEmbeddings from langchain_ollama first, fallback to langchain_community
 try:
     from langchain_ollama import OllamaEmbeddings  # type: ignore
@@ -38,7 +52,7 @@ class RAGAgent:
     """RAG Agent that retrieves world lore, enemy info, and setting details from vector store."""
 
     # Allowed categories for metadata filtering (security)
-    ALLOWED_CATEGORIES = {"enemy", "location", "item", "lore", "npc", "creature", "spell"}
+    ALLOWED_CATEGORIES = DEFAULT_RAG_ALLOWED_CATEGORIES
 
     def __init__(
         self,
@@ -77,26 +91,26 @@ class RAGAgent:
     def _create_default_llm(self) -> ChatOllama:
         """Create default LLM instance."""
         return ChatOllama(
-            model="gpt-oss:20b",
-            temperature=0.3,
-            base_url="http://localhost:11434",
-            num_ctx=2**15,
+            model=DEFAULT_LLM_MODEL,
+            temperature=DEFAULT_RAG_AGENT_TEMPERATURE,
+            base_url=DEFAULT_LLM_BASE_URL.rstrip("/"),  # Remove trailing slash for consistency
+            num_ctx=DEFAULT_LLM_NUM_CTX,
         )
 
     def _create_default_embedding(self) -> OllamaEmbeddings:
         """Create default embedding model (Ollama embeddings)."""
         try:
             return OllamaEmbeddings(
-                model="nomic-embed-text",
-                base_url="http://localhost:11434",
+                model=DEFAULT_EMBEDDING_MODEL,
+                base_url=DEFAULT_LLM_BASE_URL.rstrip("/"),  # Remove trailing slash for consistency
             )
         except Exception as e:
             logger.warning(f"Failed to create Ollama embeddings: {e}. Using fallback.")
             # Fallback: try with a different model or use a simple embedding
             try:
                 return OllamaEmbeddings(
-                    model="llama3",
-                    base_url="http://localhost:11434",
+                    model=DEFAULT_EMBEDDING_FALLBACK_MODEL,
+                    base_url=DEFAULT_LLM_BASE_URL.rstrip("/"),  # Remove trailing slash for consistency
                 )
             except Exception:
                 logger.error("Failed to create embedding model. RAG functionality may be limited.")
@@ -104,23 +118,23 @@ class RAGAgent:
 
     def _create_vector_store(self, persist_directory: Optional[str] = None) -> Chroma:
         """Create ChromaDB vector store with embeddings."""
-        collection_name = "autodnd_lore"
+        collection_name = DEFAULT_RAG_COLLECTION_NAME
 
         if persist_directory:
             # Persistent storage
             chroma_client = chromadb.PersistentClient(
                 path=persist_directory,
                 settings=Settings(
-                    anonymized_telemetry=False,
-                    allow_reset=True,
+                    anonymized_telemetry=DEFAULT_CHROMADB_ANONYMIZED_TELEMETRY,
+                    allow_reset=DEFAULT_CHROMADB_ALLOW_RESET,
                 ),
             )
         else:
             # In-memory storage
             chroma_client = chromadb.Client(
                 settings=Settings(
-                    anonymized_telemetry=False,
-                    allow_reset=True,
+                    anonymized_telemetry=DEFAULT_CHROMADB_ANONYMIZED_TELEMETRY,
+                    allow_reset=DEFAULT_CHROMADB_ALLOW_RESET,
                 )
             )
 
@@ -152,9 +166,9 @@ class RAGAgent:
 
                 # Perform similarity search with metadata filtering
                 if self._vector_store:
-                    # Retrieve top 3 most relevant documents
+                    # Retrieve top N most relevant documents
                     docs = self._vector_store.similarity_search_with_score(
-                        query, k=3, filter=where_filter
+                        query, k=DEFAULT_RAG_SIMILARITY_SEARCH_K, filter=where_filter
                     )
 
                     if docs:
