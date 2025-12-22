@@ -1,14 +1,27 @@
 """RAG Agent using LangChain for retrieving world lore and game information."""
 
-from typing import Callable, Optional
+import logging
+from typing import Any, Callable, Optional
 
+import chromadb
+from chromadb.config import Settings
 from langchain.agents import create_agent
 from langchain.chat_models import BaseChatModel
+from langchain_community.vectorstores import Chroma
+from langchain_core.documents import Document
 from langchain_core.tools import StructuredTool
 from langchain_ollama import ChatOllama
 from pydantic import BaseModel, Field
 
+# Try to import OllamaEmbeddings from langchain_ollama first, fallback to langchain_community
+try:
+    from langchain_ollama import OllamaEmbeddings  # type: ignore
+except ImportError:
+    from langchain_community.embeddings import OllamaEmbeddings  # type: ignore
+
 from autodnd.engine.game_engine import GameEngine
+
+logger = logging.getLogger(__name__)
 
 
 class QueryLoreInput(BaseModel):
@@ -23,11 +36,16 @@ class QueryLoreInput(BaseModel):
 class RAGAgent:
     """RAG Agent that retrieves world lore, enemy info, and setting details from vector store."""
 
+    # Allowed categories for metadata filtering (security)
+    ALLOWED_CATEGORIES = {"enemy", "location", "item", "lore", "npc", "creature", "spell"}
+
     def __init__(
         self,
         llm: Optional[BaseChatModel] = None,
         engine_getter: Optional[Callable[[], GameEngine]] = None,
-        vector_store: Optional[object] = None,  # Will be Chroma/FAISS vector store
+        vector_store: Optional[Chroma] = None,
+        embedding_model: Optional[Any] = None,
+        persist_directory: Optional[str] = None,
     ) -> None:
         """
         Initialize RAG Agent.
@@ -35,11 +53,22 @@ class RAGAgent:
         Args:
             llm: LangChain LLM instance (if None, will be created with defaults)
             engine_getter: Function to get current game engine instance
-            vector_store: Vector store for RAG retrieval (optional, can be added later)
+            vector_store: Chroma vector store for RAG retrieval (optional, will be created if None)
+            embedding_model: Embedding model instance (optional, will use Ollama if None)
+            persist_directory: Directory to persist ChromaDB data (optional, in-memory if None)
         """
         self._engine_getter = engine_getter
         self._llm = llm or self._create_default_llm()
-        self._vector_store = vector_store
+
+        # Initialize embedding model
+        self._embedding_model = embedding_model or self._create_default_embedding()
+
+        # Initialize vector store
+        if vector_store is None:
+            self._vector_store = self._create_vector_store(persist_directory)
+        else:
+            self._vector_store = vector_store
+
         self._tools = []
         self._agent = None
         self._build_agent()
@@ -53,39 +82,128 @@ class RAGAgent:
             num_ctx=2**15,
         )
 
+    def _create_default_embedding(self) -> OllamaEmbeddings:
+        """Create default embedding model (Ollama embeddings)."""
+        try:
+            return OllamaEmbeddings(
+                model="nomic-embed-text",
+                base_url="http://localhost:11434",
+            )
+        except Exception as e:
+            logger.warning(f"Failed to create Ollama embeddings: {e}. Using fallback.")
+            # Fallback: try with a different model or use a simple embedding
+            try:
+                return OllamaEmbeddings(
+                    model="llama3",
+                    base_url="http://localhost:11434",
+                )
+            except Exception:
+                logger.error("Failed to create embedding model. RAG functionality may be limited.")
+                raise
+
+    def _create_vector_store(self, persist_directory: Optional[str] = None) -> Chroma:
+        """Create ChromaDB vector store with embeddings."""
+        collection_name = "autodnd_lore"
+
+        if persist_directory:
+            # Persistent storage
+            chroma_client = chromadb.PersistentClient(
+                path=persist_directory,
+                settings=Settings(
+                    anonymized_telemetry=False,
+                    allow_reset=True,
+                ),
+            )
+        else:
+            # In-memory storage
+            chroma_client = chromadb.Client(
+                settings=Settings(
+                    anonymized_telemetry=False,
+                    allow_reset=True,
+                )
+            )
+
+        # Create Chroma vector store using LangChain integration
+        vector_store = Chroma(
+            client=chroma_client,
+            collection_name=collection_name,
+            embedding_function=self._embedding_model,
+        )
+
+        return vector_store
+
     def _build_agent(self) -> None:
         """Build the agent using create_agent."""
 
-        # Create query lore tool (basic implementation, can be extended with vector store)
+        # Create query lore tool with full vector store integration
         def query_lore_tool(query: str, category: Optional[str] = None) -> dict:
-            """Query world lore and game information."""
-            # TODO: Implement actual vector store retrieval
-            # For now, return a placeholder response
-            if self._vector_store is None:
+            """Query world lore and game information from vector store."""
+            try:
+                # Security: Validate category if provided
+                if category and category.lower() not in self.ALLOWED_CATEGORIES:
+                    logger.warning(f"Invalid category '{category}' filtered out for security.")
+                    category = None
+
+                # Prepare metadata filter for security
+                where_filter: Optional[dict[str, Any]] = None
+                if category:
+                    where_filter = {"category": category.lower()}
+
+                # Perform similarity search with metadata filtering
+                if self._vector_store:
+                    # Retrieve top 3 most relevant documents
+                    docs = self._vector_store.similarity_search_with_score(
+                        query, k=3, filter=where_filter
+                    )
+
+                    if docs:
+                        results = []
+                        for doc, score in docs:
+                            doc_metadata = doc.metadata or {}
+                            results.append(
+                                {
+                                    "content": doc.page_content,
+                                    "category": doc_metadata.get("category", "unknown"),
+                                    "source": doc_metadata.get("source", "unknown"),
+                                    "score": float(score),
+                                }
+                            )
+
+                        return {
+                            "results": results,
+                            "query": query,
+                            "category": category,
+                            "count": len(results),
+                        }
+                    else:
+                        return {
+                            "results": [],
+                            "query": query,
+                            "category": category,
+                            "message": "No relevant documents found.",
+                        }
+                else:
+                    return {
+                        "results": [],
+                        "query": query,
+                        "category": category,
+                        "message": "Vector store not initialized.",
+                    }
+            except Exception as e:
+                logger.error(f"Error querying vector store: {e}", exc_info=True)
                 return {
                     "results": [],
-                    "message": "Vector store not initialized. RAG functionality not available.",
                     "query": query,
                     "category": category,
+                    "error": str(e),
                 }
-
-            # Placeholder for future vector store integration
-            # When implemented, this will:
-            # 1. Query the vector store with the query string
-            # 2. Filter by category if provided
-            # 3. Return relevant documents/chunks
-            return {
-                "results": [],
-                "message": "Vector store integration pending",
-                "query": query,
-                "category": category,
-            }
 
         query_tool = StructuredTool.from_function(
             func=query_lore_tool,
             name="query_lore",
             description="Query world lore, enemy information, setting details, or game content. "
-            "Optionally filter by category (enemy, location, item, lore).",
+            "Optionally filter by category (enemy, location, item, lore, npc, creature, spell). "
+            "Returns relevant documents with content and metadata.",
             args_schema=QueryLoreInput,
         )
 
@@ -103,6 +221,7 @@ When querying:
 - Be specific with queries to get relevant results
 - Filter by category when appropriate
 - Provide clear, concise summaries of retrieved information
+- Always cite sources when providing information
 
 Always use the query_lore tool to access game information.
 """.strip()
@@ -118,10 +237,150 @@ Always use the query_lore tool to access game information.
         self._llm = llm
         self._build_agent()
 
-    def set_vector_store(self, vector_store: object) -> None:
-        """Set the vector store for RAG retrieval."""
-        self._vector_store = vector_store
-        self._build_agent()  # Rebuild agent to update tool
+    def set_embedding_model(self, embedding_model: Any) -> None:
+        """Set the embedding model (requires vector store rebuild)."""
+        self._embedding_model = embedding_model
+        # Recreate vector store with new embedding model
+        self._vector_store = self._create_vector_store()
+
+    def add_document(
+        self,
+        content: str,
+        category: str,
+        source: Optional[str] = None,
+        metadata: Optional[dict[str, Any]] = None,
+    ) -> None:
+        """
+        Add a document to the vector store.
+
+        Args:
+            content: Document content/text
+            category: Category of the document (must be in ALLOWED_CATEGORIES for security)
+            source: Source identifier (e.g., "core_rulebook", "campaign_notes")
+            metadata: Additional metadata dictionary
+        """
+        # Security: Validate category
+        if category.lower() not in self.ALLOWED_CATEGORIES:
+            logger.warning(f"Invalid category '{category}' rejected for security.")
+            return
+
+        try:
+            # Prepare document metadata with security filtering
+            doc_metadata: dict[str, Any] = {
+                "category": category.lower(),
+            }
+            if source:
+                # Sanitize source to prevent injection
+                doc_metadata["source"] = str(source).strip()[:100]  # Limit length
+
+            if metadata:
+                # Only include safe metadata fields
+                safe_keys = {"name", "type", "level", "description"}
+                for key in safe_keys:
+                    if key in metadata:
+                        value = metadata[key]
+                        # Convert to string and limit length for security
+                        doc_metadata[key] = str(value).strip()[:500]
+
+            # Create document
+            document = Document(page_content=content, metadata=doc_metadata)
+
+            # Add to vector store
+            self._vector_store.add_documents([document])
+            logger.info(f"Added document to vector store: category={category}, source={source}")
+
+        except Exception as e:
+            logger.error(f"Error adding document to vector store: {e}", exc_info=True)
+
+    def add_documents(self, documents: list[Document]) -> None:
+        """
+        Add multiple documents to the vector store.
+
+        Args:
+            documents: List of Document objects to add
+        """
+        try:
+            # Filter documents to ensure security
+            safe_documents = []
+            for doc in documents:
+                metadata = doc.metadata or {}
+                category = metadata.get("category", "").lower()
+
+                # Validate category
+                if category and category in self.ALLOWED_CATEGORIES:
+                    # Ensure category is set correctly
+                    doc.metadata["category"] = category
+                    safe_documents.append(doc)
+                else:
+                    logger.warning(f"Document with invalid category '{category}' skipped.")
+
+            if safe_documents:
+                self._vector_store.add_documents(safe_documents)
+                logger.info(f"Added {len(safe_documents)} documents to vector store")
+        except Exception as e:
+            logger.error(f"Error adding documents to vector store: {e}", exc_info=True)
+
+    def populate_initial_content(self) -> None:
+        """Populate vector store with initial game content examples."""
+        initial_content = [
+            {
+                "content": "Goblin: Small, green-skinned humanoids. Typically found in groups. "
+                "Weak in combat but dangerous in numbers. Often use crude weapons and tactics. "
+                "Common in caves and ruins.",
+                "category": "enemy",
+                "source": "core_monster_manual",
+                "metadata": {"name": "Goblin", "type": "humanoid", "level": "1"},
+            },
+            {
+                "content": "Dragon: Massive, intelligent, ancient reptiles with breath weapons. "
+                "Come in many varieties (red, blue, green, etc.) each with different abilities. "
+                "Extremely powerful and hoard treasure.",
+                "category": "creature",
+                "source": "core_monster_manual",
+                "metadata": {"name": "Dragon", "type": "dragon", "level": "10+"},
+            },
+            {
+                "content": "Fireball Spell: A classic evocation spell that creates a massive "
+                "explosion of fire. Does significant area damage. Requires careful positioning "
+                "to avoid harming allies.",
+                "category": "spell",
+                "source": "core_spellbook",
+                "metadata": {"name": "Fireball", "type": "evocation", "level": "3"},
+            },
+            {
+                "content": "The Forgotten Temple: An ancient temple hidden in the mountains. "
+                "Rumored to contain powerful artifacts. Guarded by ancient traps and undead. "
+                "Last visited decades ago.",
+                "category": "location",
+                "source": "campaign_lore",
+                "metadata": {"name": "Forgotten Temple", "type": "dungeon"},
+            },
+            {
+                "content": "Health Potion: A common magical item that restores health when consumed. "
+                "Red liquid in a glass vial. Instant effect. Essential for adventurers.",
+                "category": "item",
+                "source": "core_item_list",
+                "metadata": {"name": "Health Potion", "type": "potion"},
+            },
+            {
+                "content": "The Age of Heroes: A legendary era when powerful heroes roamed the land. "
+                "Many artifacts and locations date back to this time. Stories passed down through "
+                "generations inspire modern adventurers.",
+                "category": "lore",
+                "source": "world_history",
+                "metadata": {"name": "Age of Heroes", "type": "historical_period"},
+            },
+        ]
+
+        for item in initial_content:
+            self.add_document(
+                content=item["content"],
+                category=item["category"],
+                source=item.get("source"),
+                metadata=item.get("metadata"),
+            )
+
+        logger.info("Populated vector store with initial game content")
 
     def query(self, query: str, category: Optional[str] = None) -> dict:
         """
@@ -134,7 +393,9 @@ Always use the query_lore tool to access game information.
         Returns:
             Dictionary with query results
         """
-        messages = [{"role": "user", "content": f"Query: {query}" + (f" (Category: {category})" if category else "")}]
+        messages = [
+            {"role": "user", "content": f"Query: {query}" + (f" (Category: {category})" if category else "")}
+        ]
 
         result = self._agent.invoke({"messages": messages})
 
@@ -153,3 +414,6 @@ Always use the query_lore tool to access game information.
 
         return {"query": query, "category": category, "response": result.get("output", "No results found.")}
 
+    def get_vector_store(self) -> Optional[Chroma]:
+        """Get the current vector store instance."""
+        return self._vector_store

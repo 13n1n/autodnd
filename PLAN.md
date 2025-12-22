@@ -445,11 +445,11 @@ class StateSnapshot(BaseModel):
     - [v] Add NPC personality/context injection
 
 11. **RAG Agent**
-    - [v] Setup vector store (Chroma/FAISS) for world lore - Basic structure created, can be extended
-    - [ ] Create embedding model integration - Structure ready for implementation
-    - [v] Implement `QueryLoreTool` with RAG retrieval - Basic tool created, ready for vector store integration
-    - [ ] Add metadata filtering for security - Can be added when vector store is implemented
-    - [ ] Populate initial vector store with game content - Can be added when vector store is implemented
+    - [v] Setup vector store (Chroma/FAISS) for world lore - ChromaDB implemented with full integration
+    - [v] Create embedding model integration - Ollama embeddings integrated with fallback support
+    - [v] Implement `QueryLoreTool` with RAG retrieval - Full vector store integration with similarity search
+    - [v] Add metadata filtering for security - Category whitelist filtering implemented for security
+    - [v] Populate initial vector store with game content - `populate_initial_content()` method implemented with example content
 
 12. **Action Validator Agent**
     - [v] Setup lightweight agent for action validation
