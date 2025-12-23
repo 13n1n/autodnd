@@ -20,6 +20,16 @@ from autodnd.agents.tools import (
     create_store_data_tool,
 )
 from ..api.llm_config import LLMConfig, LLMConfigManager
+from langchain.chat_models import BaseChatModel
+from langchain_openai import ChatOpenAI
+from langchain_ollama import ChatOllama
+from autodnd.config import (
+    DEFAULT_OLLAMA_BASE_URL,
+    DEFAULT_LLM_NUM_CTX,
+    DEFAULT_OLLAMA_API_KEY,
+    DEFAULT_OPENAI_BASE_URL,
+    DEFAULT_OPENAI_API_KEY,
+)
 from ..api.security_config import SecurityConfig, SecurityConfigManager
 from ..engine.game_engine import GameEngine
 from ..persistence.state_dumper import StateDumper
@@ -127,7 +137,37 @@ def _get_game_master(game_id: Optional[str] = None) -> Optional[GameMasterAgent]
     return None
 
 
-def _setup_game_master(engine: GameEngine, custom_prompt: Optional[str] = None) -> GameMasterAgent:
+def _create_llm_from_config(config: LLMConfig) -> BaseChatModel:
+    """Create an LLM instance from an LLMConfig."""
+    kwargs = {
+        "model": config.model,
+        "temperature": config.temperature,
+        "timeout": config.timeout,
+    }
+
+    if config.max_tokens:
+        kwargs["max_tokens"] = config.max_tokens
+
+    try:
+        match config.provider:
+            case "ollama":
+                kwargs["base_url"] = config.base_url or DEFAULT_OLLAMA_BASE_URL
+                kwargs["api_key"] = DEFAULT_OLLAMA_API_KEY
+                kwargs["num_ctx"] = DEFAULT_LLM_NUM_CTX
+                return ChatOllama(**kwargs)
+            case "openai":
+                kwargs["base_url"] = config.base_url or DEFAULT_OPENAI_BASE_URL
+                kwargs["api_key"] = config.api_key or DEFAULT_OPENAI_API_KEY
+                return ChatOpenAI(**kwargs)
+            case _:
+                raise ValueError(f"Invalid provider: {config.provider}")
+    except Exception as e:
+        app.logger.error(f"Failed to create LLM from config: {e}", exc_info=True)
+        # Fallback to default LLM
+        return _llm_config_manager.get_llm()
+
+
+def _setup_game_master(engine: GameEngine, custom_prompt: Optional[str] = None, llm: Optional[BaseChatModel] = None) -> GameMasterAgent:
     """Setup game master agent."""
     def state_getter():
         return engine.state
@@ -145,7 +185,9 @@ def _setup_game_master(engine: GameEngine, custom_prompt: Optional[str] = None) 
         create_get_data_tool(state_getter),
     ]
 
-    llm = _llm_config_manager.get_llm()
+    # Use provided LLM or fall back to global config
+    if llm is None:
+        llm = _llm_config_manager.get_llm()
     return GameMasterAgent(llm=llm, tools=tools, engine_getter=lambda: engine, system_prompt=custom_prompt)
 
 
@@ -164,11 +206,22 @@ def _load_game_from_state(state: GameState) -> tuple[GameEngine, GameMasterAgent
     if state.metadata.settings and "game_master_prompt" in state.metadata.settings:
         game_master_prompt = state.metadata.settings["game_master_prompt"]
 
+    # Extract LLM config from metadata if available
+    game_llm = None
+    if state.metadata.settings and "llm_config" in state.metadata.settings:
+        try:
+            llm_config_dict = state.metadata.settings["llm_config"]
+            llm_config = LLMConfig(**llm_config_dict)
+            game_llm = _create_llm_from_config(llm_config)
+        except Exception as e:
+            app.logger.warning(f"Failed to load LLM config from game state: {e}. Using default LLM.")
+            # Fall back to default LLM
+
     # Create engine with loaded state
     engine = GameEngine(initial_state=state)
     
-    # Setup game master
-    game_master = _setup_game_master(engine, game_master_prompt)
+    # Setup game master with game-specific LLM if available
+    game_master = _setup_game_master(engine, game_master_prompt, llm=game_llm)
     
     # Create orchestrator
     orchestrator = AgentOrchestrator(
@@ -210,6 +263,7 @@ def _create_initial_game(
     difficulty: Optional[str] = None,
     rules_variant: Optional[str] = None,
     game_master_prompt: Optional[str] = None,
+    llm_config: Optional[LLMConfig] = None,
 ) -> tuple[GameEngine, GameMasterAgent]:
     """Create initial game state."""
     # Create a default player
@@ -228,10 +282,15 @@ def _create_initial_game(
     diff = Difficulty(difficulty) if difficulty else Difficulty.NORMAL
     rules = RulesVariant(rules_variant) if rules_variant else RulesVariant.STANDARD
     
+    # Use provided LLM config or fall back to global config
+    game_llm_config = llm_config if llm_config is not None else _llm_config_manager.config
+    
+    # Create game-specific LLM instance
+    game_llm = _create_llm_from_config(game_llm_config)
+    
     # Store LLM config in game settings
-    llm_config = _llm_config_manager.config
     settings = {
-        "llm_config": llm_config.model_dump(),  # Store LLM config for this game
+        "llm_config": game_llm_config.model_dump(),  # Store LLM config for this game
     }
     if game_master_prompt:
         settings["game_master_prompt"] = game_master_prompt
@@ -249,7 +308,7 @@ def _create_initial_game(
     )
 
     engine = GameEngine(initial_state=initial_state)
-    game_master = _setup_game_master(engine, game_master_prompt)
+    game_master = _setup_game_master(engine, game_master_prompt, llm=game_llm)
     
     # Create orchestrator
     orchestrator = AgentOrchestrator(
@@ -323,16 +382,27 @@ def create_game():
         return jsonify({"error": "Content-Type must be application/json"}), 400
 
     data = request.get_json() or {}
-    
+
     difficulty = data.get("difficulty")
     rules_variant = data.get("rules_variant")
     game_master_prompt = data.get("game_master_prompt")
-    
+    llm_config_data = data.get("llm_config")
+
+    # Parse LLM config if provided
+    llm_config = None
+    if llm_config_data:
+        try:
+            llm_config = LLMConfig(**llm_config_data)
+        except Exception as e:
+            app.logger.error(f"Invalid LLM config: {e}", exc_info=True)
+            return jsonify({"error": "Invalid LLM configuration", "message": str(e)}), 400
+
     try:
         engine, game_master = _create_initial_game(
             difficulty=difficulty,
             rules_variant=rules_variant,
             game_master_prompt=game_master_prompt,
+            llm_config=llm_config,
         )
         game_id = engine.state.game_id
         _games[game_id] = (engine, game_master)
@@ -413,7 +483,7 @@ def submit_action(game_id: str):
     # Apply action
     new_state, success, error_msg = engine.apply_action(action)
 
-    _dump_game_state(new_state.message_history.messages)
+    _dump_game_state(new_state)
 
     return jsonify(
         {

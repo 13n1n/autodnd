@@ -286,6 +286,33 @@
             background: rgba(255, 0, 0, 0.2);
             color: #ff6b6b;
         }
+
+        .btn-collapsible {
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #e0e0e0;
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            border-radius: 6px;
+            font-size: 0.95rem;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-collapsible:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: rgba(74, 144, 226, 0.5);
+        }
+
+        #llmSettingsSection {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-top: 1rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
     </style>
 </head>
 <body>
@@ -324,6 +351,55 @@
                     <textarea id="game_master_prompt" name="game_master_prompt" placeholder="Customize the game master's personality, style, or setting. For example: &quot;You are a dark and mysterious dungeon master. The world is filled with shadows and ancient secrets.&quot;"></textarea>
                     <small>Describe how you want the game master to behave or what setting/world the game should take place in.</small>
                 </div>
+                
+                <div class="form-group">
+                    <button type="button" class="btn-collapsible" onclick="toggleLLMSettings()">
+                        <span id="llmSettingsToggle">▶</span> LLM Settings (Optional)
+                    </button>
+                    <small>Override default LLM settings for this game. Leave empty to use global defaults.</small>
+                </div>
+                
+                <div id="llmSettingsSection" style="display: none;">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="llm_provider">Provider</label>
+                            <select id="llm_provider" name="llm_provider">
+                                <option value="">Use Default</option>
+                                <option value="openai">OpenAI</option>
+                                <option value="ollama">Ollama</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="llm_model">Model</label>
+                            <input type="text" id="llm_model" name="llm_model" placeholder="e.g., gpt-4, llama3">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="llm_base_url">Base URL (Optional)</label>
+                            <input type="text" id="llm_base_url" name="llm_base_url" placeholder="Custom API endpoint">
+                        </div>
+                        <div class="form-group">
+                            <label for="llm_api_key">API Key (Optional)</label>
+                            <input type="password" id="llm_api_key" name="llm_api_key" placeholder="API key">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="llm_temperature">Temperature (0.0 - 2.0)</label>
+                            <input type="number" id="llm_temperature" name="llm_temperature" min="0" max="2" step="0.1" placeholder="0.7">
+                        </div>
+                        <div class="form-group">
+                            <label for="llm_max_tokens">Max Tokens (Optional)</label>
+                            <input type="number" id="llm_max_tokens" name="llm_max_tokens" min="1" placeholder="Leave empty for default">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="llm_timeout">Timeout (seconds)</label>
+                        <input type="number" id="llm_timeout" name="llm_timeout" min="1" placeholder="60">
+                    </div>
+                </div>
+                
                 <button type="submit" class="btn btn-primary" id="createBtn">Create Game</button>
             </form>
         </div>
@@ -352,6 +428,18 @@
             }, 5000);
         }
 
+        function toggleLLMSettings() {
+            const section = document.getElementById('llmSettingsSection');
+            const toggle = document.getElementById('llmSettingsToggle');
+            if (section.style.display === 'none') {
+                section.style.display = 'block';
+                toggle.textContent = '▼';
+            } else {
+                section.style.display = 'none';
+                toggle.textContent = '▶';
+            }
+        }
+
         async function createGame(event) {
             event.preventDefault();
             
@@ -359,10 +447,32 @@
             const btn = document.getElementById('createBtn');
             const formData = new FormData(form);
             
+            // Build LLM config if any LLM fields are provided
+            const llmProvider = formData.get('llm_provider');
+            const llmModel = formData.get('llm_model');
+            const llmBaseUrl = formData.get('llm_base_url');
+            const llmApiKey = formData.get('llm_api_key');
+            const llmTemperature = formData.get('llm_temperature');
+            const llmMaxTokens = formData.get('llm_max_tokens');
+            const llmTimeout = formData.get('llm_timeout');
+            
+            let llmConfig = null;
+            if (llmProvider || llmModel || llmBaseUrl || llmApiKey || llmTemperature || llmMaxTokens || llmTimeout) {
+                llmConfig = {};
+                if (llmProvider) llmConfig.provider = llmProvider;
+                if (llmModel) llmConfig.model = llmModel;
+                if (llmBaseUrl) llmConfig.base_url = llmBaseUrl;
+                if (llmApiKey) llmConfig.api_key = llmApiKey;
+                if (llmTemperature) llmConfig.temperature = parseFloat(llmTemperature);
+                if (llmMaxTokens) llmConfig.max_tokens = parseInt(llmMaxTokens);
+                if (llmTimeout) llmConfig.timeout = parseInt(llmTimeout);
+            }
+            
             const gameData = {
                 difficulty: formData.get('difficulty'),
                 rules_variant: formData.get('rules_variant'),
                 game_master_prompt: formData.get('game_master_prompt') || null,
+                llm_config: llmConfig,
             };
 
             btn.disabled = true;
