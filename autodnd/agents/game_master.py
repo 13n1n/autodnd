@@ -1,5 +1,7 @@
 """Game Master Agent using LangChain."""
 
+import uuid
+from datetime import datetime
 from typing import TYPE_CHECKING, Callable, Optional
 
 from langchain.agents import create_agent
@@ -17,7 +19,7 @@ from autodnd.config import (
     DEFAULT_LLM_MODEL,
     DEFAULT_LLM_NUM_CTX,
 )
-from autodnd.models.messages import MessageSource, MessageType
+from autodnd.models.messages import Message, MessageSource, MessageType
 
 if TYPE_CHECKING:
     from autodnd.engine.game_engine import GameEngine
@@ -104,7 +106,7 @@ Be polite and friendly. Also, here some requests from player:
         self._custom_prompt = system_prompt
         self._build_agent()
 
-    def process_action(self, action_description: str, message_history: list[dict]) -> str:
+    def process_action(self, action_description: str, message_history: list[dict]) -> tuple[str, list[Message]]:
         """
         Process a player action and generate a response.
 
@@ -113,7 +115,7 @@ Be polite and friendly. Also, here some requests from player:
             message_history: Recent message history for context
 
         Returns:
-            Game Master response text
+            Tuple of (response_text, list_of_tool_messages)
         """
         # Convert message history to LangChain message format
         messages = []
@@ -129,27 +131,15 @@ Be polite and friendly. Also, here some requests from player:
         # Invoke agent
         result = self._agent.invoke({"messages": messages})
 
-        # Extract the last message content from the response
-        # The result contains messages array, get the last one (should be AIMessage)
-        if result.get("messages"):
-            last_message = result["messages"][-1]
-            # Handle both AIMessage objects and dicts
-            if hasattr(last_message, "content"):
-                content = last_message.content
-                if isinstance(content, str):
-                    return content
-                elif isinstance(content, list):
-                    # Handle content blocks
-                    return " ".join(str(item) for item in content)
-            elif isinstance(last_message, dict):
-                content = last_message.get("content", "")
-                if isinstance(content, str):
-                    return content
+        # Extract tool calls and final response
+        response, tool_messages = self._extract_tool_calls_from_result(result)
 
-        # Fallback: try to get output directly
-        return result.get("output", "Master acknowledges your action.")
+        if not response:
+            response = result.get("output", "Master acknowledges your action.")
 
-    def generate_story_continuation(self, context: str) -> str:
+        return response, tool_messages
+
+    def generate_story_continuation(self, context: str) -> tuple[str, list[Message]]:
         """
         Generate story continuation based on context.
 
@@ -157,35 +147,128 @@ Be polite and friendly. Also, here some requests from player:
             context: Current game context/situation
 
         Returns:
-            Story continuation text
+            Tuple of (story_continuation_text, list_of_tool_messages)
         """
         messages = [{"role": "user", "content": f"Continue the story based on this context: {context}"}]
 
         result = self._agent.invoke({"messages": messages})
 
-        # Extract the last message content from the response
-        if result.get("messages"):
-            last_message = result["messages"][-1]
-            # Handle both AIMessage objects and dicts
-            if hasattr(last_message, "content"):
-                content = last_message.content
-                if isinstance(content, str):
-                    return content
-                elif isinstance(content, list):
-                    # Handle content blocks
-                    return " ".join(str(item) for item in content)
-            elif isinstance(last_message, dict):
-                content = last_message.get("content", "")
-                if isinstance(content, str):
-                    return content
+        # Extract tool calls and final response
+        continuation, tool_messages = self._extract_tool_calls_from_result(result)
 
-        return result.get("output", "Story continues...")
+        if not continuation:
+            continuation = result.get("output", "Story continues...")
+
+        return continuation, tool_messages
+
+    def _extract_tool_calls_from_result(self, result: dict, sequence_start: int = 0) -> tuple[str, list[Message]]:
+        """
+        Extract tool calls and final response from agent result.
+
+        Args:
+            result: Agent invocation result
+            sequence_start: Starting sequence number for messages
+
+        Returns:
+            Tuple of (final_response_text, list_of_tool_messages)
+        """
+        tool_messages: list[Message] = []
+        sequence = sequence_start
+        final_response = ""
+
+        if result.get("messages"):
+            for msg in result["messages"]:
+                # Handle both message objects and dicts
+                msg_dict = msg if isinstance(msg, dict) else {}
+                msg_obj = msg if not isinstance(msg, dict) else None
+
+                # Check if this is a tool call message (AIMessage with tool_calls)
+                tool_calls = None
+                if msg_obj and hasattr(msg_obj, "tool_calls") and msg_obj.tool_calls:
+                    tool_calls = msg_obj.tool_calls
+                elif msg_dict.get("tool_calls"):
+                    tool_calls = msg_dict["tool_calls"]
+
+                if tool_calls:
+                    for tool_call in tool_calls:
+                        # Handle both dict and object tool calls
+                        if isinstance(tool_call, dict):
+                            tool_name = tool_call.get("name", "unknown")
+                            tool_args = tool_call.get("args", {})
+                            tool_id = tool_call.get("id", str(uuid.uuid4()))
+                        else:
+                            tool_name = getattr(tool_call, "name", "unknown")
+                            tool_args = getattr(tool_call, "args", {})
+                            tool_id = getattr(tool_call, "id", str(uuid.uuid4()))
+
+                        # Create tool call message
+                        tool_call_msg = Message(
+                            message_id=str(uuid.uuid4()),
+                            timestamp=datetime.now(),
+                            sequence_number=sequence,
+                            source=MessageSource.TOOL,
+                            source_id=tool_name,
+                            content=f"Tool call: {tool_name}({tool_args})",
+                            message_type=MessageType.TOOL_OUTPUT,
+                            tool_name=tool_name,
+                            metadata={"tool_call_id": tool_id, "tool_args": tool_args},
+                        )
+                        tool_messages.append(tool_call_msg)
+                        sequence += 1
+
+                # Check if this is a tool result message (ToolMessage)
+                tool_name_attr = None
+                tool_content = None
+                if msg_obj:
+                    tool_name_attr = getattr(msg_obj, "name", None)
+                    tool_content = getattr(msg_obj, "content", None)
+                elif msg_dict:
+                    tool_name_attr = msg_dict.get("name")
+                    tool_content = msg_dict.get("content")
+
+                if tool_name_attr and tool_content:
+                    # This is a tool result
+                    content_str = str(tool_content)
+                    tool_result_msg = Message(
+                        message_id=str(uuid.uuid4()),
+                        timestamp=datetime.now(),
+                        sequence_number=sequence,
+                        source=MessageSource.TOOL,
+                        source_id=tool_name_attr,
+                        content=content_str,
+                        message_type=MessageType.TOOL_OUTPUT,
+                        tool_name=tool_name_attr,
+                        metadata={"tool_result": True},
+                    )
+                    tool_messages.append(tool_result_msg)
+                    sequence += 1
+
+                # Extract final response from AIMessage without tool_calls (overwrite to get the last one)
+                # Skip if this message has tool_calls or is a ToolMessage (those are handled above)
+                if not tool_calls and not tool_name_attr:
+                    if msg_obj and hasattr(msg_obj, "content"):
+                        content = msg_obj.content
+                        if isinstance(content, str) and content:
+                            final_response = content
+                        elif isinstance(content, list):
+                            # Handle content blocks
+                            final_response = " ".join(str(item) for item in content)
+                    elif msg_dict and not msg_dict.get("tool_calls") and not msg_dict.get("name"):
+                        content = msg_dict.get("content", "")
+                        if isinstance(content, str) and content:
+                            final_response = content
+
+        # Fallback: try to get output directly
+        if not final_response:
+            final_response = result.get("output", "")
+
+        return final_response, tool_messages
 
     def generate_initial_intro(
         self,
         difficulty: Optional[str] = None,
         custom_prompt: Optional[str] = None,
-    ) -> str:
+    ) -> tuple[str, list[Message]]:
         """
         Generate initial game introduction message.
 
@@ -200,7 +283,7 @@ Be polite and friendly. Also, here some requests from player:
             custom_prompt: Optional custom prompt from player
 
         Returns:
-            Initial intro message text
+            Tuple of (intro_message_text, list_of_tool_messages)
         """
         intro_prompt = """You are a Dungeon Master starting a new D&D adventure. Generate an engaging introduction message that:
 
@@ -235,27 +318,11 @@ Write the introduction as if you are narrating directly to the player character.
 
         result = self._agent.invoke({"messages": messages})
 
-        # Extract the last message content from the response
-        if result.get("messages"):
-            last_message = result["messages"][-1]
-            # Handle both AIMessage objects and dicts
-            if hasattr(last_message, "content"):
-                content = last_message.content
-                if isinstance(content, str):
-                    return content
-                elif isinstance(content, list):
-                    # Handle content blocks
-                    return " ".join(str(item) for item in content)
-            elif isinstance(last_message, dict):
-                content = last_message.get("content", "")
-                if isinstance(content, str):
-                    return content
+        # Extract tool calls and final response
+        intro_message, tool_messages = self._extract_tool_calls_from_result(result)
 
-        # Fallback intro
-        return """Welcome, adventurer! You find yourself at the beginning of a new journey. 
+        if not intro_message:
+            raise Exception("Generation intro failed!")
 
-The world around you is full of mysteries and challenges waiting to be discovered. Your path forward is unclear, but you sense that important events are unfolding.
-
-What would you like to do?"""
-
+        return intro_message, tool_messages
 

@@ -721,7 +721,7 @@
         function renderMessages(messages) {
             const container = document.getElementById('messages');
             container.innerHTML = '';
-            
+
             // Sort messages by sequence_number (ascending - youngest to oldest at bottom)
             const sortedMessages = [...messages].sort((a, b) => a.sequence_number - b.sequence_number);
             
@@ -845,7 +845,7 @@
                 });
                 
                 const data = await response.json();
-                
+
                 if (data.success) {
                     currentState = data.state;
                     renderMessages(currentState.message_history.messages);

@@ -138,6 +138,5 @@ class ActionValidator:
             ActionType.INTERACT,
         ]:
             return TimeCost.HALF_DAY
-        else:
-            return TimeCost.NO_TIME
+        return TimeCost.NO_TIME
 

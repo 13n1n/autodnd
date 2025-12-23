@@ -19,26 +19,29 @@ from autodnd.agents.tools import (
     create_roll_dice_tool,
     create_store_data_tool,
 )
-from autodnd.api.llm_config import LLMConfig, LLMConfigManager
-from autodnd.api.security_config import SecurityConfig, SecurityConfigManager
-from autodnd.engine.game_engine import GameEngine
-from autodnd.persistence.state_dumper import StateDumper
-from autodnd.security.input_sanitizer import InputSanitizer
-from autodnd.security.security_agent import SecurityAgent
-from autodnd.models.actions import Action, ActionType, TimeCost
-from autodnd.models.metadata import Difficulty, GameMetadata, RulesVariant
-from autodnd.models.messages import MessageSource, MessageType
-from autodnd.models.player import Player
-from autodnd.models.state import GameState
-from autodnd.models.stats import PlayerStats
-from autodnd.models.world import HexCoordinate, HexMap, TimeState
+from ..api.llm_config import LLMConfig, LLMConfigManager
+from ..api.security_config import SecurityConfig, SecurityConfigManager
+from ..engine.game_engine import GameEngine
+from ..persistence.state_dumper import StateDumper
+from ..security.input_sanitizer import InputSanitizer
+from ..security.security_agent import SecurityAgent
+from ..models.actions import Action, ActionType, TimeCost
+from ..models.metadata import Difficulty, GameMetadata, RulesVariant
+from ..models.messages import MessageSource, MessageType
+from ..models.player import Player
+from ..models.state import GameState
+from ..models.stats import PlayerStats
+from ..models.world import HexCoordinate, HexMap, TimeState
+
+
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 STATIC_DIR = os.path.join(BASE_DIR, "static")
 
-app = Flask(__name__, static_folder=STATIC_DIR, static_url_path="/static")
+logging.basicConfig(level=logging.INFO, format='[%(name)-19s - %(levelname)5s] %(message)s')
 
-logging.basicConfig(level=logging.DEBUG, format='[%(asctime)s - %(name)-15s - %(levelname)-8s] %(message)s')
+app = Flask("flask.autodnd", static_folder=STATIC_DIR, static_url_path="/static")
+
 
 @app.before_request
 def log_request_info():
@@ -259,10 +262,21 @@ def _create_initial_game(
     
     # Generate initial intro message from game master
     try:
-        intro_message = game_master.generate_initial_intro(
+        intro_message, tool_messages = game_master.generate_initial_intro(
             difficulty=difficulty or "NORMAL",
             custom_prompt=game_master_prompt,
         )
+        
+        # Add tool messages to game state first
+        for tool_msg in tool_messages:
+            engine.add_message(
+                content=tool_msg.content,
+                source=tool_msg.source,
+                message_type=tool_msg.message_type,
+                source_id=tool_msg.source_id,
+                tool_name=tool_msg.tool_name,
+                metadata=tool_msg.metadata,
+            )
         
         # Add intro message to game state
         engine.add_message(
@@ -280,7 +294,7 @@ def _create_initial_game(
             message_type=MessageType.RESPONSE,
             metadata={"is_initial_intro": True, "error": str(e)},
         )
-    
+
     # Dump initial game state
     _dump_game_state(engine.state)
     
@@ -399,32 +413,13 @@ def submit_action(game_id: str):
     # Apply action
     new_state, success, error_msg = engine.apply_action(action)
 
-    # Agent orchestration is now handled in GameEngine.apply_action()
-    # The orchestrator will log all messages (master, NPC, tools, system)
-    # Extract master response from the latest master message
-    master_response = ""
-    if success:
-        # Find the latest master response message
-        for msg in reversed(engine.state.message_history.messages):
-            if msg.source == MessageSource.MASTER and msg.message_type == MessageType.RESPONSE:
-                master_response = msg.content
-                break
-        
-        # Fallback if no master message found
-        if not master_response:
-            master_response = "Master acknowledges your action."
-        
-        new_state = engine.state
-        
-        # Dump updated game state to disk
-        _dump_game_state(new_state)
+    _dump_game_state(new_state.message_history.messages)
 
     return jsonify(
         {
             "success": success,
             "error": error_msg if not success else None,
-            "state": _serialize_state_for_api(new_state),
-            "master_response": master_response,
+            "state": _serialize_state_for_api(new_state)
         }
     )
 
@@ -601,7 +596,7 @@ def game_view(game_id: str):
 
 def _serialize_state_for_api(state: GameState) -> dict:
     """Serialize state for API (exclude internal data)."""
-    return {
+    serialized = {
         "game_id": state.game_id,
         "state_version": state.state_version,
         "created_at": state.created_at.isoformat(),
@@ -627,6 +622,7 @@ def _serialize_state_for_api(state: GameState) -> dict:
         "combat_state": state.combat_state.model_dump() if state.combat_state else None,
         "metadata": state.metadata.model_dump(),
     }
+    return serialized
 
 
 if __name__ == "__main__":

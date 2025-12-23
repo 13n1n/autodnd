@@ -12,10 +12,14 @@ from autodnd.agents.state_serializer import StateSerializer
 from autodnd.models.messages import Message, MessageSource, MessageType
 from autodnd.models.state import GameState
 
+from .. import helpers
+
+
 if TYPE_CHECKING:
     from autodnd.engine.game_engine import GameEngine
 
-logger = logging.getLogger(__name__)
+
+logger = logging.getLogger(__name__.split(".")[-1])
 
 
 class AgentOrchestrator:
@@ -45,6 +49,7 @@ class AgentOrchestrator:
         self._engine_getter = engine_getter
         self._max_retries = max_retries
 
+    @helpers.log_call
     def process_player_action(
         self, action_text: str, state: GameState, player_id: Optional[str] = None
     ) -> tuple[str, list[Message]]:
@@ -66,13 +71,8 @@ class AgentOrchestrator:
             Tuple of (master_response, list_of_messages)
         """
         messages: list[Message] = []
-        sequence_start = len(state.message_history.messages)
 
         try:
-            # Step 1: Get context for Game Master
-            gm_context = StateSerializer.extract_game_master_context(state, player_id)
-            context_str = StateSerializer.format_context_for_agent(gm_context, "game_master")
-
             # Step 2: Prepare message history for Game Master
             recent_messages = [
                 {
@@ -85,8 +85,10 @@ class AgentOrchestrator:
 
             # Step 3: Call Game Master (with retry logic) and capture tool outputs
             master_response, tool_outputs = self._call_game_master_with_tools(
-                action_text, recent_messages, sequence_start + len(messages)
+                action_text, recent_messages, len(state.message_history.messages)
             )
+
+            logging.warning("HERE ARE TOOLS OUTPUTS: %s", tool_outputs)
 
             # Step 4: Log tool outputs first (if any)
             for tool_output in tool_outputs:
@@ -97,45 +99,12 @@ class AgentOrchestrator:
                 content=master_response,
                 source=MessageSource.MASTER,
                 message_type=MessageType.RESPONSE,
-                sequence_number=sequence_start + len(messages),
+                sequence_number=len(state.message_history.messages) + len(messages),
             )
             messages.append(master_message)
 
-            # Step 6: Check if NPC interaction is needed
-            # (Simple heuristic: if action mentions "talk", "speak", "ask", or NPC name)
-            npc_interaction = self._detect_npc_interaction(action_text, master_response, state)
-            if npc_interaction and self._npc_agent:
-                npc_response = self._handle_npc_interaction(
-                    npc_interaction["npc_id"],
-                    npc_interaction.get("npc_name", "NPC"),
-                    npc_interaction.get("npc_personality", ""),
-                    action_text,
-                    state,
-                    sequence_start + len(messages),
-                )
-                if npc_response:
-                    messages.append(npc_response)
-
-            # Step 7: Check if RAG query is needed
-            # (If Game Master response suggests lore/world info needed)
-            if self._rag_agent and self._should_query_rag(action_text, master_response):
-                rag_messages = self._handle_rag_query(
-                    action_text, state, player_id, sequence_start + len(messages)
-                )
-                messages.extend(rag_messages)
-
         except Exception as e:
-            logger.error(f"Error in agent orchestration: {e}", exc_info=True)
-            # Log error as system message
-            error_message = self._create_message(
-                content=f"Agent orchestration error: {str(e)}",
-                source=MessageSource.SYSTEM,
-                message_type=MessageType.SYSTEM,
-                sequence_number=sequence_start + len(messages),
-                metadata={"error": str(e), "error_type": type(e).__name__},
-            )
-            messages.append(error_message)
-            master_response = "I encountered an error processing your action. Please try again."
+            raise Exception(f"Error in agent orchestration: {e}") from e
 
         return master_response, messages
 
@@ -308,50 +277,6 @@ class AgentOrchestrator:
         # Should not reach here, but satisfy type checker
         raise RuntimeError(f"{agent_name} call failed after {self._max_retries + 1} attempts")
 
-    def _detect_npc_interaction(
-        self, action_text: str, master_response: str, state: GameState
-    ) -> Optional[dict[str, Any]]:
-        """
-        Detect if action involves NPC interaction.
-
-        Args:
-            action_text: Player action text
-            master_response: Game Master response
-            state: Current game state
-
-        Returns:
-            Dict with npc_id, npc_name, npc_personality if detected, None otherwise
-        """
-        # Simple heuristic: check for NPC-related keywords
-        npc_keywords = ["talk", "speak", "ask", "tell", "say", "greet", "npc"]
-        action_lower = action_text.lower()
-
-        if not any(keyword in action_lower for keyword in npc_keywords):
-            return None
-
-        # Try to find NPC in nearby cells
-        if state.players:
-            player_pos = state.players[0].position
-            # Check cells within 1 hex distance
-            for q_offset in range(-1, 2):
-                for r_offset in range(-1, 2):
-                    from autodnd.models.world import HexCoordinate
-
-                    coord = HexCoordinate(q=player_pos.q + q_offset, r=player_pos.r + r_offset)
-                    cell = state.world_map.get_cell(coord)
-                    if cell and cell.contents:
-                        # Check if any content looks like an NPC ID
-                        for content_id in cell.contents:
-                            # Simple heuristic: if content_id contains "npc" or is a UUID-like string
-                            if "npc" in content_id.lower() or len(content_id) > 20:
-                                return {
-                                    "npc_id": content_id,
-                                    "npc_name": content_id.replace("_", " ").title(),
-                                    "npc_personality": "A friendly NPC in the game world.",
-                                }
-
-        return None
-
     def _handle_npc_interaction(
         self,
         npc_id: str,
@@ -438,61 +363,6 @@ class AgentOrchestrator:
         # Check if action or response suggests need for world knowledge
         return any(keyword in action_lower or keyword in response_lower for keyword in rag_keywords)
 
-    def _handle_rag_query(
-        self, query: str, state: GameState, player_id: Optional[str], sequence_number: int
-    ) -> list[Message]:
-        """
-        Handle RAG query.
-
-        Args:
-            query: Query string
-            state: Current game state
-            player_id: Optional player ID
-            sequence_number: Starting sequence number
-
-        Returns:
-            List of messages (RAG query result and tool output)
-        """
-        messages: list[Message] = []
-
-        if not self._rag_agent:
-            return messages
-
-        try:
-            # Get RAG context
-            rag_context = StateSerializer.extract_rag_context(state, query, player_id)
-
-            # Call RAG agent (through its query_lore method if available)
-            # Note: RAG agent's query_lore is typically called via tool, but we can call it directly
-            # For now, we'll create a tool output message
-            # In a full implementation, we'd call the RAG agent's query method
-
-            # Create a placeholder message for RAG tool output
-            # In practice, this would call the actual RAG retrieval
-            rag_result = "RAG query executed (integration pending)"
-            tool_message = self._create_message(
-                content=rag_result,
-                source=MessageSource.TOOL,
-                message_type=MessageType.TOOL_OUTPUT,
-                sequence_number=sequence_number,
-                source_id="query_lore",
-                tool_name="query_lore",
-                metadata={"query": query, "context": rag_context},
-            )
-            messages.append(tool_message)
-
-        except Exception as e:
-            logger.error(f"Error in RAG query: {e}", exc_info=True)
-            error_message = self._create_message(
-                content=f"RAG query error: {str(e)}",
-                source=MessageSource.SYSTEM,
-                message_type=MessageType.SYSTEM,
-                sequence_number=sequence_number,
-                metadata={"error": str(e)},
-            )
-            messages.append(error_message)
-
-        return messages
 
     def _create_message(
         self,

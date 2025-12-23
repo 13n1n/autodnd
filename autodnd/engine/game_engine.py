@@ -109,15 +109,15 @@ class GameEngine:
         if self._orchestrator:
             # Extract action text from parameters
             action_text = action.parameters.get("text", action.action_type.value)
-            
+
             # Create temporary state with player message for orchestrator
             temp_state = self._state.model_copy(update={"message_history": new_message_history})
-            
+
             # Process through orchestrator
             master_response, agent_messages = self._orchestrator.process_player_action(
                 action_text, temp_state, action.player_id
             )
-            
+
             # Add all agent messages to history
             for msg in agent_messages:
                 # Update sequence numbers and action_id
@@ -129,18 +129,7 @@ class GameEngine:
                 )
                 new_message_history = new_message_history.add_message(updated_msg)
         else:
-            # Fallback: create placeholder master message
-            master_message = Message(
-                message_id=str(uuid.uuid4()),
-                timestamp=datetime.now(),
-                sequence_number=len(new_message_history.messages),
-                source=MessageSource.MASTER,
-                source_id=None,
-                content=master_response,
-                message_type=MessageType.RESPONSE,
-                action_id=action.action_id,
-            )
-            new_message_history = new_message_history.add_message(master_message)
+            raise Exception("No orchestrator during applying action!")
 
         # Update players (recalculate stats if needed)
         updated_players = []
@@ -165,30 +154,13 @@ class GameEngine:
             }
         )
 
-        # Create snapshot if needed (for now, snapshot every action - can be optimized later)
-        should_snapshot = self._should_create_snapshot(action, new_state)
-        if should_snapshot:
-            self._history.create_snapshot(
-                new_state, {"reason": "action", "action_id": action.action_id}
-            )
+        self._history.create_snapshot(
+            new_state, {"reason": "action", "action_id": action.action_id}
+        )
 
         self._state = new_state
         return new_state, True, ""
 
-    def _should_create_snapshot(self, action: Action, state: GameState) -> bool:
-        """
-        Determine if a snapshot should be created.
-
-        Args:
-            action: Action that was applied
-            state: New state
-
-        Returns:
-            True if snapshot should be created
-        """
-        # Snapshot on combat start, level-up, or explicit save points
-        # For now, snapshot on every action (can be optimized later)
-        return True
 
     def revert_to(self, snapshot_index: int) -> tuple[bool, str]:
         """

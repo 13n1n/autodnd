@@ -9,7 +9,7 @@ from typing import Optional
 
 from autodnd.models.state import GameState
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__.split(".")[-1])
 
 
 class StateDumper:
