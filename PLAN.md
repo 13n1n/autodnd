@@ -483,32 +483,42 @@ class StateSnapshot(BaseModel):
 
 ### Phase 5: Game Logic Integration
 
-16. **Hex Map System**
+16. **Game Status UI**
+    - [ ] Create UI component for hex map display (interactive hex grid visualization)
+    - [ ] Display current game action status (resting, talking, combat, exploring, etc.)
+    - [ ] Show player stats panel with:
+      - Base stats (without equipment): Health, Strength, Dexterity, Intelligence, Charisma
+      - Current stats (with equipment and buffs): Effective values with visual indicators
+      - Stat breakdown showing contributions from equipment and active effects
+    - [ ] Integrate with game state to update UI in real-time
+    - [ ] Add visual indicators for active status conditions and effects
+
+17. **Hex Map System**
     - [ ] Implement `HexMap` class (hexagonal grid)
     - [ ] Implement cell navigation (hex coordinates)
     - [ ] Add terrain types and movement costs
     - [ ] Integrate with `TimeManager` (half-day per move)
 
-17. **Combat System Integration**
+18. **Combat System Integration**
     - [ ] Integrate `CombatSystem` with Game Master agent
     - [ ] Agent decides combat outcomes using dice rolls
     - [ ] Implement turn-based combat flow
     - [ ] Handle combat state in game state
 
-18. **Inventory & Equipment System**
+19. **Inventory & Equipment System**
     - [ ] Complete `InventoryManager` implementation
     - [ ] Validate item placement (bags, equipment slots)
     - [ ] Implement stat modifiers from equipment
     - [ ] Handle item tags (heavy, large, instant, etc.)
 
-19. **Time-Based Actions**
+20. **Time-Based Actions**
     - [ ] Implement action time costs (NO_TIME, HALF_DAY, WHOLE_DAY)
     - [ ] Integrate with `TimeManager`
     - [ ] Update game state based on time progression
 
 ### Phase 6: API & Frontend
 
-20. **Flask API Endpoints**
+21. **Flask API Endpoints**
     - [v] `POST /api/game/start` - Initialize new game
     - [v] `POST /api/game/action` - Submit player action (with sanitization)
     - [v] `GET /api/game/state` - Get current state (sanitized for frontend)
@@ -516,12 +526,12 @@ class StateSnapshot(BaseModel):
     - [v] `GET /api/game/history` - List snapshots
     - [ ] `POST /api/game/image` - Generate scene image (future)
 
-21. **State Serialization for API**
+22. **State Serialization for API**
     - [v] Create API-safe state serializer (exclude internal data)
     - [v] Implement JSON response formatting
     - [v] Add error response handling
 
-22. **Frontend Integration**
+23. **Frontend Integration**
     - [v] Create HTML frontend (or Telegram bot structure)
     - [v] Implement action submission UI
     - [v] Display game state (map, inventory, stats) - Chat interface with messages
@@ -531,20 +541,20 @@ class StateSnapshot(BaseModel):
 
 ### Phase 7: Testing & Refinement
 
-23. **Unit Tests**
+24. **Unit Tests**
     - [ ] Test game engine state transitions
     - [ ] Test action validation
     - [ ] Test inventory management
     - [ ] Test state revert functionality
     - [ ] Test prompt injection prevention
 
-24. **Integration Tests**
+25. **Integration Tests**
     - [ ] Test agent interactions
     - [ ] Test end-to-end game flow
     - [ ] Test RAG integration
     - [ ] Test combat system
 
-25. **Security Testing**
+26. **Security Testing**
     - [ ] Test prompt injection attempts
     - [ ] Test input sanitization
     - [ ] Test agent output validation
@@ -552,22 +562,22 @@ class StateSnapshot(BaseModel):
 
 ### Phase 8: Advanced Features
 
-26. **Image Generation Integration**
+27. **Image Generation Integration**
     - [ ] Integrate diffusion model API (Stable Diffusion, etc.)
     - [ ] Generate scene images from game state
     - [ ] Cache generated images
 
-27. **Persistence**
+28. **Persistence**
     - [ ] Add database for game state persistence
     - [ ] Implement save/load functionality
     - [ ] Store history in database
 
-28. **Multiplayer Support**
+29. **Multiplayer Support**
     - [ ] Extend state for multiple players
     - [ ] Handle turn order
     - [ ] Sync state across players
 
-29. **Performance Optimization**
+30. **Performance Optimization**
     - [ ] Optimize state snapshot creation
     - [ ] Implement lazy loading for history
     - [ ] Cache agent responses where appropriate
