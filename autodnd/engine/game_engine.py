@@ -7,13 +7,16 @@ from typing import Optional
 from autodnd.agents.orchestrator import AgentOrchestrator
 from autodnd.engine.action_validator import ActionValidator
 from autodnd.engine.combat import CombatSystem
+from autodnd.engine.hex_navigation import HexNavigation
 from autodnd.engine.history import StateHistory
 from autodnd.engine.inventory_manager import InventoryManager
 from autodnd.engine.stat_calculator import StatCalculator
 from autodnd.engine.time_manager import TimeManager
-from autodnd.models.actions import Action
+from autodnd.models.actions import Action, ActionType
+from autodnd.models.items import ItemTag
 from autodnd.models.messages import Message, MessageHistory, MessageSource, MessageType
 from autodnd.models.state import GameState
+from autodnd.models.world import HexCoordinate
 
 
 class GameEngine:
@@ -80,8 +83,12 @@ class GameEngine:
         if not is_valid:
             return self._state, False, error_msg
 
-        # Determine time cost
-        time_cost = ActionValidator.get_time_cost(action)
+        # Determine time cost (pass state for USE_ITEM instant check)
+        time_cost = ActionValidator.get_time_cost(action, self._state)
+
+        # Apply action-specific state changes BEFORE agent processing
+        # (e.g., movement, inventory changes)
+        action_state_updates = self._apply_action_state_changes(action)
 
         # Create player action message
         player_message = Message(
@@ -100,7 +107,12 @@ class GameEngine:
         new_message_history = self._state.message_history.add_message(player_message)
 
         # Update time
-        new_time = TimeManager.advance_time(self._state.current_time, time_cost)
+        new_time = TimeManager.advance_time(action_state_updates["current_time"], time_cost)
+
+        # Apply action state updates to temp state for agent processing
+        temp_state = action_state_updates["state"].model_copy(
+            update={"message_history": new_message_history, "current_time": new_time}
+        )
 
         # Process action with agent orchestrator if available
         agent_messages: list[Message] = []
@@ -109,9 +121,6 @@ class GameEngine:
         if self._orchestrator:
             # Extract action text from parameters
             action_text = action.parameters.get("text", action.action_type.value)
-
-            # Create temporary state with player message for orchestrator
-            temp_state = self._state.model_copy(update={"message_history": new_message_history})
 
             # Process through orchestrator
             master_response, agent_messages = self._orchestrator.process_player_action(
@@ -133,11 +142,11 @@ class GameEngine:
 
         # Update players (recalculate stats if needed)
         updated_players = []
-        for player in self._state.players:
+        for player in temp_state.players:
             if player.player_id == action.player_id:
-                # Recalculate stats
+                # Recalculate stats (in case equipment changed)
                 new_current_stats = StatCalculator.calculate_current_stats(
-                    player, self._state.active_effects
+                    player, temp_state.active_effects
                 )
                 updated_player = player.model_copy(update={"current_stats": new_current_stats})
                 updated_players.append(updated_player)
@@ -145,7 +154,7 @@ class GameEngine:
                 updated_players.append(player)
 
         # Create new state
-        new_state = self._state.model_copy(
+        new_state = temp_state.model_copy(
             update={
                 "state_version": self._state.state_version + 1,
                 "message_history": new_message_history,
@@ -161,6 +170,160 @@ class GameEngine:
         self._state = new_state
         return new_state, True, ""
 
+    def _apply_action_state_changes(self, action: Action) -> dict:
+        """
+        Apply action-specific state changes (movement, inventory, etc.).
+
+        Returns:
+            Dict with updated state and current_time (before time advancement)
+        """
+        from autodnd.models.world import TerrainType
+
+        updated_state = self._state
+        updated_time = self._state.current_time
+
+        player = next((p for p in self._state.players if p.player_id == action.player_id), None)
+        if not player:
+            return {"state": updated_state, "current_time": updated_time}
+
+        # Handle MOVE action
+        if action.action_type == ActionType.MOVE:
+            target_coordinate = None
+
+            # Determine target coordinate
+            if "target_coordinate" in action.parameters:
+                coord_data = action.parameters["target_coordinate"]
+                if isinstance(coord_data, dict):
+                    target_coordinate = HexCoordinate(q=coord_data["q"], r=coord_data["r"])
+            elif "direction" in action.parameters:
+                direction_str = action.parameters["direction"]
+                direction = HexNavigation.get_direction_from_name(direction_str)
+                if direction is not None:
+                    target_coordinate = HexNavigation.get_neighbor(player.position, direction)
+
+            if target_coordinate:
+                # Update player position
+                new_movement_history = list(player.movement_history) + [player.position]
+                updated_player = player.model_copy(
+                    update={"position": target_coordinate, "movement_history": new_movement_history}
+                )
+
+                # Mark cell as discovered
+                updated_map = updated_state.world_map.mark_discovered(target_coordinate)
+
+                # Ensure cell exists in map
+                cell = updated_map.get_cell(target_coordinate)
+                if cell is None:
+                    # Create cell if it doesn't exist
+                    from autodnd.models.world import HexCell
+                    new_cell = HexCell(
+                        coordinates=target_coordinate,
+                        terrain=TerrainType.PLAINS,
+                        contents=[],
+                        discovered=True,
+                        description=None,
+                    )
+                    updated_map = updated_map.set_cell(new_cell)
+
+                # Update players list
+                updated_players = [
+                    updated_player if p.player_id == action.player_id else p
+                    for p in updated_state.players
+                ]
+
+                updated_state = updated_state.model_copy(
+                    update={"players": updated_players, "world_map": updated_map}
+                )
+
+        # Handle EQUIP_ITEM action
+        elif action.action_type == ActionType.EQUIP_ITEM:
+            item_id = action.parameters.get("item_id")
+            if item_id:
+                item = next((i for i in player.inventory.all_items if i.item_id == item_id), None)
+                if item:
+                    try:
+                        updated_inventory = InventoryManager.equip_item(player.inventory, item)
+                        updated_player = player.model_copy(update={"inventory": updated_inventory})
+                        updated_players = [
+                            updated_player if p.player_id == action.player_id else p
+                            for p in updated_state.players
+                        ]
+                        updated_state = updated_state.model_copy(update={"players": updated_players})
+                    except ValueError:
+                        # Equipment failed (validation already done, but handle gracefully)
+                        pass
+
+        # Handle UNEQUIP_ITEM action
+        elif action.action_type == ActionType.UNEQUIP_ITEM:
+            item_id = action.parameters.get("item_id")
+            if item_id:
+                # Find equipped item
+                equipped_items = [
+                    player.inventory.primary_weapon,
+                    player.inventory.secondary_weapon,
+                    player.inventory.cloth,
+                    player.inventory.hat,
+                    player.inventory.pants,
+                    player.inventory.large_item,
+                ]
+                item = next((i for i in equipped_items if i and i.item_id == item_id), None)
+                if item:
+                    # Unequip by setting the appropriate slot to None
+                    updates = {}
+                    if player.inventory.primary_weapon and player.inventory.primary_weapon.item_id == item_id:
+                        updates["primary_weapon"] = None
+                    elif (
+                        player.inventory.secondary_weapon
+                        and player.inventory.secondary_weapon.item_id == item_id
+                    ):
+                        updates["secondary_weapon"] = None
+                    elif player.inventory.cloth and player.inventory.cloth.item_id == item_id:
+                        updates["cloth"] = None
+                    elif player.inventory.hat and player.inventory.hat.item_id == item_id:
+                        updates["hat"] = None
+                    elif player.inventory.pants and player.inventory.pants.item_id == item_id:
+                        updates["pants"] = None
+                    elif (
+                        player.inventory.large_item and player.inventory.large_item.item_id == item_id
+                    ):
+                        updates["large_item"] = None
+
+                    if updates:
+                        # Update item location to inventory
+                        from autodnd.models.items import ItemLocation
+                        updated_item = item.model_copy(update={"location": ItemLocation.INVENTORY})
+                        new_all_items = [
+                            updated_item if i.item_id == item_id else i
+                            for i in player.inventory.all_items
+                        ]
+                        updated_inventory = player.inventory.model_copy(
+                            update={**updates, "all_items": new_all_items}
+                        )
+                        updated_player = player.model_copy(update={"inventory": updated_inventory})
+                        updated_players = [
+                            updated_player if p.player_id == action.player_id else p
+                            for p in updated_state.players
+                        ]
+                        updated_state = updated_state.model_copy(update={"players": updated_players})
+
+        # Handle USE_ITEM action (basic implementation)
+        elif action.action_type == ActionType.USE_ITEM:
+            item_id = action.parameters.get("item_id")
+            if item_id:
+                item = next((i for i in player.inventory.all_items if i.item_id == item_id), None)
+                if item:
+                    # Handle instant items (potions, etc.)
+                    if ItemTag.INSTANT in item.tags:
+                        # Instant items are consumed/used immediately
+                        # For potions, apply stat modifiers as temporary effects
+                        if ItemTag.POTION in item.tags and item.stat_modifiers:
+                            # Create effect from potion (simplified - could be enhanced)
+                            # This would be better handled by the agent, but basic support here
+                            pass
+                        # Item could be consumed here (remove from inventory)
+                        # For now, let the agent handle item consumption
+
+        return {"state": updated_state, "current_time": updated_time}
 
     def revert_to(self, snapshot_index: int) -> tuple[bool, str]:
         """

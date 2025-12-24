@@ -1,5 +1,7 @@
 """Action validation system."""
 
+from typing import Optional
+
 from autodnd.models.actions import Action, ActionType, TimeCost
 from autodnd.models.state import GameState
 
@@ -45,9 +47,35 @@ class ActionValidator:
     @staticmethod
     def _validate_move(action: Action, state: GameState, player) -> tuple[bool, str]:
         """Validate move action."""
+        from autodnd.engine.hex_navigation import HexNavigation
+
         if "direction" not in action.parameters and "target_coordinate" not in action.parameters:
             return False, "Move action requires 'direction' or 'target_coordinate' parameter"
-        # Additional validation can be added here (check if target is reachable, etc.)
+
+        # Determine target coordinate
+        target_coordinate = None
+        if "target_coordinate" in action.parameters:
+            coord_data = action.parameters["target_coordinate"]
+            from autodnd.models.world import HexCoordinate
+            if isinstance(coord_data, dict):
+                target_coordinate = HexCoordinate(q=coord_data["q"], r=coord_data["r"])
+            else:
+                return False, "target_coordinate must be a dict with 'q' and 'r' fields"
+        elif "direction" in action.parameters:
+            direction_str = action.parameters["direction"]
+            direction = HexNavigation.get_direction_from_name(direction_str)
+            if direction is None:
+                return False, f"Invalid direction: {direction_str}"
+            target_coordinate = HexNavigation.get_neighbor(player.position, direction)
+
+        if target_coordinate is None:
+            return False, "Could not determine target coordinate"
+
+        # Validate move using hex navigation
+        is_valid, error_msg = HexNavigation.is_valid_move(player.position, target_coordinate, state.world_map)
+        if not is_valid:
+            return False, error_msg or "Invalid move"
+
         return True, ""
 
     @staticmethod
@@ -112,19 +140,37 @@ class ActionValidator:
         return True, ""
 
     @staticmethod
-    def get_time_cost(action: Action) -> TimeCost:
+    def get_time_cost(action: Action, state: Optional[GameState] = None) -> TimeCost:
         """
         Determine time cost for an action.
 
         Args:
             action: Action to determine time cost for
+            state: Optional game state (needed for USE_ITEM to check item tags)
 
         Returns:
             TimeCost enum value
         """
-        # Use action's time_cost if set, otherwise determine from action type
+        # Use action's time_cost if explicitly set, otherwise determine from action type
         if action.time_cost != TimeCost.NO_TIME:
             return action.time_cost
+
+        # Handle USE_ITEM - check if item has instant tag
+        if action.action_type == ActionType.USE_ITEM:
+            if state:
+                item_id = action.parameters.get("item_id")
+                if item_id:
+                    # Find player and item
+                    player = next((p for p in state.players if p.player_id == action.player_id), None)
+                    if player:
+                        item = next((i for i in player.inventory.all_items if i.item_id == item_id), None)
+                        if item:
+                            from autodnd.models.items import ItemTag
+                            # Instant items take no time
+                            if ItemTag.INSTANT in item.tags:
+                                return TimeCost.NO_TIME
+            # Non-instant items take half day
+            return TimeCost.HALF_DAY
 
         # Default time costs based on action type
         if action.action_type in [ActionType.ATTACK, ActionType.TALK]:
@@ -138,5 +184,9 @@ class ActionValidator:
             ActionType.INTERACT,
         ]:
             return TimeCost.HALF_DAY
+        elif action.action_type in [ActionType.EQUIP_ITEM, ActionType.UNEQUIP_ITEM]:
+            # Equipment changes take no time
+            return TimeCost.NO_TIME
+
         return TimeCost.NO_TIME
 

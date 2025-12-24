@@ -63,6 +63,35 @@ class HexMap(BaseModel):
         new_cells[(cell.coordinates.q, cell.coordinates.r)] = cell
         return self.model_copy(update={"cells": new_cells})
 
+    def get_or_create_cell(self, coordinate: HexCoordinate, terrain: TerrainType = TerrainType.PLAINS) -> HexCell:
+        """Get cell at coordinate, or create it if it doesn't exist."""
+        cell = self.get_cell(coordinate)
+        if cell is None:
+            return HexCell(
+                coordinates=coordinate,
+                terrain=terrain,
+                contents=[],
+                discovered=False,
+                description=None,
+            )
+        return cell
+
+    def mark_discovered(self, coordinate: HexCoordinate) -> "HexMap":
+        """Mark a cell as discovered (immutable update)."""
+        cell = self.get_cell(coordinate)
+        if cell is None:
+            # Create cell if it doesn't exist
+            new_cell = HexCell(
+                coordinates=coordinate,
+                terrain=TerrainType.PLAINS,
+                contents=[],
+                discovered=True,
+                description=None,
+            )
+        else:
+            new_cell = cell.model_copy(update={"discovered": True})
+        return self.set_cell(new_cell)
+
 
 class TimeState(BaseModel):
     """Game time tracking."""

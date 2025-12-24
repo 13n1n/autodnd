@@ -18,6 +18,7 @@ class RollDiceInput(BaseModel):
     dice_type: int = Field(description="Type of dice (e.g., 20 for d20, 6 for d6)")
     modifier: int = Field(default=0, description="Modifier to add to result")
     count: int = Field(default=1, description="Number of dice to roll")
+    reason: Optional[str] = Field(default=None, description="Reason for rolling the dice")
 
 
 class GetPlayerStatsInput(BaseModel):
@@ -52,6 +53,7 @@ class StoreDataInput(BaseModel):
 
     key: str = Field(description="Key to store the value under")
     value: str = Field(description="Value to store")
+    reason: Optional[str] = Field(default=None, description="Reason for rolling the dice")
 
 
 class GetDataInput(BaseModel):

@@ -484,20 +484,20 @@ class StateSnapshot(BaseModel):
 ### Phase 5: Game Logic Integration
 
 16. **Game Status UI**
-    - [ ] Create UI component for hex map display (interactive hex grid visualization)
-    - [ ] Display current game action status (resting, talking, combat, exploring, etc.)
-    - [ ] Show player stats panel with:
+    - [v] Create UI component for hex map display (interactive hex grid visualization)
+    - [v] Display current game action status (resting, talking, combat, exploring, etc.)
+    - [v] Show player stats panel with:
       - Base stats (without equipment): Health, Strength, Dexterity, Intelligence, Charisma
       - Current stats (with equipment and buffs): Effective values with visual indicators
       - Stat breakdown showing contributions from equipment and active effects
-    - [ ] Integrate with game state to update UI in real-time
-    - [ ] Add visual indicators for active status conditions and effects
+    - [v] Integrate with game state to update UI in real-time
+    - [v] Add visual indicators for active status conditions and effects
 
 17. **Hex Map System**
-    - [ ] Implement `HexMap` class (hexagonal grid)
-    - [ ] Implement cell navigation (hex coordinates)
-    - [ ] Add terrain types and movement costs
-    - [ ] Integrate with `TimeManager` (half-day per move)
+    - [v] Implement `HexMap` class (hexagonal grid)
+    - [v] Implement cell navigation (hex coordinates) - Added HexNavigation utility class
+    - [v] Add terrain types and movement costs
+    - [v] Integrate with `TimeManager` (half-day per move)
 
 18. **Combat System Integration**
     - [ ] Integrate `CombatSystem` with Game Master agent
@@ -506,15 +506,16 @@ class StateSnapshot(BaseModel):
     - [ ] Handle combat state in game state
 
 19. **Inventory & Equipment System**
-    - [ ] Complete `InventoryManager` implementation
-    - [ ] Validate item placement (bags, equipment slots)
-    - [ ] Implement stat modifiers from equipment
-    - [ ] Handle item tags (heavy, large, instant, etc.)
+    - [v] Complete `InventoryManager` implementation
+    - [v] Validate item placement (bags, equipment slots)
+    - [v] Implement stat modifiers from equipment
+    - [v] Handle item tags (heavy, large, instant, etc.) - Time costs respect instant tag
 
 20. **Time-Based Actions**
-    - [ ] Implement action time costs (NO_TIME, HALF_DAY, WHOLE_DAY)
-    - [ ] Integrate with `TimeManager`
-    - [ ] Update game state based on time progression
+    - [v] Implement action time costs (NO_TIME, HALF_DAY, WHOLE_DAY)
+    - [v] Integrate with `TimeManager`
+    - [v] Update game state based on time progression
+    - [v] Handle instant items (no time cost) in USE_ITEM actions
 
 ### Phase 6: API & Frontend
 

@@ -60,15 +60,218 @@
             background: #357abd;
         }
 
+        .main-content {
+            flex: 1;
+            width: 100%;
+            display: flex;
+            overflow: hidden;
+            gap: 1rem;
+            padding: 1rem;
+        }
+
         .chat-container {
             flex: 1;
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            padding: 2rem;
-            max-width: 1200px;
             width: 100%;
-            margin: 0 auto;
+        }
+
+        .game-status-panel {
+            width: 350px;
+            min-width: 300px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            padding: 1rem;
+            overflow-y: auto;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .game-status-panel h3 {
+            color: #fff;
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 0.5rem;
+        }
+
+        .status-section {
+            margin-bottom: 1.5rem;
+        }
+
+        .status-section-title {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Hex Map Display */
+        .hex-map-container {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .hex-map-grid {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.2rem;
+        }
+
+        .hex-map-row {
+            display: flex;
+            gap: 0.1rem;
+        }
+
+        .hex-cell {
+            width: 30px;
+            height: 26px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .hex-cell.discovered {
+            background: rgba(100, 150, 200, 0.2);
+        }
+
+        .hex-cell.current {
+            background: rgba(74, 144, 226, 0.4);
+            border: 2px solid #4a90e2;
+            font-weight: bold;
+        }
+
+        .hex-cell:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .hex-coords {
+            font-size: 0.6rem;
+            color: rgba(255, 255, 255, 0.6);
+            margin-top: 0.25rem;
+            text-align: center;
+        }
+
+        /* Stats Panel */
+        .stats-panel {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+            padding: 1rem;
+        }
+
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .stat-item:last-child {
+            border-bottom: none;
+        }
+
+        .stat-name {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.9rem;
+        }
+
+        .stat-values {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 0.2rem;
+        }
+
+        .stat-base {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 0.8rem;
+        }
+
+        .stat-current {
+            color: #fff;
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+
+        .stat-modifier {
+            font-size: 0.75rem;
+            margin-left: 0.25rem;
+        }
+
+        .stat-modifier.positive {
+            color: #6bff6b;
+        }
+
+        .stat-modifier.negative {
+            color: #ff6b6b;
+        }
+
+        /* Action Status */
+        .action-status {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+            padding: 1rem;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+        }
+
+        .status-indicator.idle {
+            background: #6bff6b;
+        }
+
+        .status-indicator.resting {
+            background: #ffa500;
+        }
+
+        .status-indicator.combat {
+            background: #ff6b6b;
+        }
+
+        .status-indicator.exploring {
+            background: #4a90e2;
+        }
+
+        .time-display {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+        }
+
+        /* Player Info */
+        .player-info {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+            padding: 1rem;
+        }
+
+        .player-name {
+            color: #fff;
+            font-weight: 600;
+            font-size: 1rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .player-level {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.85rem;
         }
 
         .messages {
@@ -550,11 +753,53 @@
 
     <div id="errorContainer"></div>
 
-    <div class="chat-container">
-        <div class="messages" id="messages"></div>
-        <div class="input-area">
-            <input type="text" id="actionInput" placeholder="Describe your action..." onkeypress="handleKeyPress(event)">
-            <button id="submitBtn" onclick="submitAction()">Send</button>
+    <div class="main-content">
+        <div class="chat-container">
+            <div class="messages" id="messages"></div>
+            <div class="input-area">
+                <input type="text" id="actionInput" placeholder="Describe your action..." onkeypress="handleKeyPress(event)">
+                <button id="submitBtn" onclick="submitAction()">Send</button>
+            </div>
+        </div>
+
+        <div class="game-status-panel">
+            <h3>Game Status</h3>
+            
+            <div class="status-section">
+                <div class="status-section-title">Player</div>
+                <div class="player-info" id="playerInfo">
+                    <div class="player-name">-</div>
+                    <div class="player-level">Level -</div>
+                </div>
+            </div>
+
+            <div class="status-section">
+                <div class="status-section-title">Status</div>
+                <div class="action-status" id="actionStatus">
+                    <div>
+                        <span class="status-indicator idle"></span>
+                        <span>Idle</span>
+                    </div>
+                    <div class="time-display" id="timeDisplay">Day 1, Morning</div>
+                </div>
+            </div>
+
+            <div class="status-section">
+                <div class="status-section-title">Stats</div>
+                <div class="stats-panel" id="statsPanel">
+                    <!-- Stats will be populated by JavaScript -->
+                </div>
+            </div>
+
+            <div class="status-section">
+                <div class="status-section-title">Hex Map</div>
+                <div class="hex-map-container" id="hexMapContainer">
+                    <div class="hex-map-grid" id="hexMapGrid">
+                        <!-- Hex map will be populated by JavaScript -->
+                    </div>
+                    <div class="hex-coords" id="hexCoords">Position: (0, 0)</div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -711,6 +956,7 @@
                 const data = await response.json();
                 currentState = data.state;
                 renderMessages(currentState.message_history.messages);
+                updateGameStatus(currentState);
             } catch (error) {
                 console.error('Error loading state:', error);
                 showError(`Error loading game: ${error.message}. Make sure the game exists.`);
@@ -807,6 +1053,200 @@
             container.scrollTop = container.scrollHeight;
         }
 
+        // Update game status panel
+        function updateGameStatus(state) {
+            if (!state || !state.players || state.players.length === 0) {
+                return;
+            }
+
+            // Get first player (for now, single player)
+            const player = state.players[0];
+
+            // Update player info
+            const playerInfo = document.getElementById('playerInfo');
+            if (playerInfo) {
+                playerInfo.innerHTML = `
+                    <div class="player-name">${player.name}</div>
+                    <div class="player-level">Level ${player.level}</div>
+                `;
+            }
+
+            // Update time display
+            const timeDisplay = document.getElementById('timeDisplay');
+            if (timeDisplay && state.current_time) {
+                const time = state.current_time;
+                const timeOfDay = time.half_day_increment === 0 ? 'Morning' : 'Evening';
+                timeDisplay.textContent = `Day ${time.current_day}, ${timeOfDay}`;
+            }
+
+            // Update action status
+            const actionStatus = document.getElementById('actionStatus');
+            if (actionStatus) {
+                let statusText = 'Idle';
+                let statusClass = 'idle';
+                
+                if (state.combat_state && state.combat_state.is_active) {
+                    statusText = 'In Combat';
+                    statusClass = 'combat';
+                } else {
+                    // Determine status from last action (simplified)
+                    const lastMessage = state.message_history && state.message_history.messages && 
+                        state.message_history.messages.length > 0 
+                        ? state.message_history.messages[state.message_history.messages.length - 1]
+                        : null;
+                    if (lastMessage && lastMessage.metadata && lastMessage.metadata.action_type) {
+                        const actionType = lastMessage.metadata.action_type;
+                        if (actionType === 'rest') {
+                            statusText = 'Resting';
+                            statusClass = 'resting';
+                        } else if (actionType === 'move' || actionType === 'search') {
+                            statusText = 'Exploring';
+                            statusClass = 'exploring';
+                        }
+                    }
+                }
+                
+                actionStatus.innerHTML = `
+                    <div>
+                        <span class="status-indicator ${statusClass}"></span>
+                        <span>${statusText}</span>
+                    </div>
+                    <div class="time-display" id="timeDisplay">${timeDisplay ? timeDisplay.textContent : ''}</div>
+                `;
+            }
+
+            // Update stats panel
+            const statsPanel = document.getElementById('statsPanel');
+            if (statsPanel && player.base_stats && player.current_stats) {
+                const stats = ['health', 'strength', 'dexterity', 'intelligence', 'charisma'];
+                const statLabels = {
+                    health: 'Health',
+                    strength: 'Strength',
+                    dexterity: 'Dexterity',
+                    intelligence: 'Intelligence',
+                    charisma: 'Charisma'
+                };
+
+                statsPanel.innerHTML = stats.map(statName => {
+                    const baseValue = player.base_stats[statName] || player.base_stats[`max_${statName}`] || 0;
+                    const currentValue = player.current_stats[statName] || player.current_stats[`max_${statName}`] || 0;
+                    const modifier = currentValue - baseValue;
+                    const modifierText = modifier !== 0 
+                        ? `<span class="stat-modifier ${modifier > 0 ? 'positive' : 'negative'}">${modifier > 0 ? '+' : ''}${modifier}</span>`
+                        : '';
+                    
+                    return `
+                        <div class="stat-item">
+                            <span class="stat-name">${statLabels[statName]}</span>
+                            <div class="stat-values">
+                                <div class="stat-current">${currentValue}${modifierText}</div>
+                                <div class="stat-base">Base: ${baseValue}</div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            // Update hex map
+            updateHexMap(state, player);
+        }
+
+        // Update hex map display
+        function updateHexMap(state, player) {
+            const hexMapGrid = document.getElementById('hexMapGrid');
+            const hexCoords = document.getElementById('hexCoords');
+            
+            if (!hexMapGrid || !hexCoords || !player.position) {
+                return;
+            }
+
+            // Update coordinates display
+            hexCoords.textContent = `Position: (${player.position.q}, ${player.position.r})`;
+
+            // Get discovered cells around player
+            const map = state.world_map || { cells: {} };
+            const cells = map.cells || {};
+            
+            // Get a 5x5 grid around player (simplified display)
+            const radius = 2;
+            const discoveredCells = [];
+            
+            // Find all discovered cells
+            Object.values(cells).forEach(cell => {
+                if (cell && cell.discovered) {
+                    discoveredCells.push(cell);
+                }
+            });
+
+            // If player position cell doesn't exist, add it
+            const playerKey = `(${player.position.q},${player.position.r})`;
+            let playerCellExists = false;
+            discoveredCells.forEach(cell => {
+                if (cell.coordinates.q === player.position.q && cell.coordinates.r === player.position.r) {
+                    playerCellExists = true;
+                }
+            });
+
+            if (!playerCellExists) {
+                // Add current cell
+                discoveredCells.push({
+                    coordinates: player.position,
+                    terrain: 'plains',
+                    discovered: true
+                });
+            }
+
+            // Build simple grid display
+            // For now, show a simplified view of discovered cells around player
+            const displayCells = discoveredCells
+                .filter(cell => {
+                    const dist = Math.abs(cell.coordinates.q - player.position.q) + 
+                                 Math.abs(cell.coordinates.r - player.position.r);
+                    return dist <= radius;
+                })
+                .sort((a, b) => {
+                    // Sort by distance
+                    const distA = Math.abs(a.coordinates.q - player.position.q) + 
+                                  Math.abs(a.coordinates.r - player.position.r);
+                    const distB = Math.abs(b.coordinates.q - player.position.q) + 
+                                  Math.abs(b.coordinates.r - player.position.r);
+                    return distA - distB;
+                });
+
+            if (displayCells.length === 0) {
+                hexMapGrid.innerHTML = '<div style="color: rgba(255,255,255,0.5); text-align: center; padding: 1rem;">No map data</div>';
+                return;
+            }
+
+            // Create a simple grid representation
+            // Group cells by r coordinate for rows
+            const rows = {};
+            displayCells.forEach(cell => {
+                const r = cell.coordinates.r;
+                if (!rows[r]) {
+                    rows[r] = [];
+                }
+                rows[r].push(cell);
+            });
+
+            const sortedRows = Object.keys(rows).sort((a, b) => parseInt(a) - parseInt(b));
+            
+            hexMapGrid.innerHTML = sortedRows.map(r => {
+                const rowCells = rows[r].sort((a, b) => a.coordinates.q - b.coordinates.q);
+                return `
+                    <div class="hex-map-row">
+                        ${rowCells.map(cell => {
+                            const isCurrent = cell.coordinates.q === player.position.q && 
+                                            cell.coordinates.r === player.position.r;
+                            const cellClass = `hex-cell ${cell.discovered ? 'discovered' : ''} ${isCurrent ? 'current' : ''}`;
+                            const terrainChar = cell.terrain ? cell.terrain.charAt(0).toUpperCase() : '?';
+                            return `<div class="${cellClass}" title="(${cell.coordinates.q}, ${cell.coordinates.r}) - ${cell.terrain || 'unknown'}">${terrainChar}</div>`;
+                        }).join('')}
+                    </div>
+                `;
+            }).join('');
+        }
+
         function toggleDetails(messageDiv) {
             const details = messageDiv.querySelector('.message-details');
             const toggle = messageDiv.querySelector('.details-toggle');
@@ -849,6 +1289,7 @@
                 if (data.success) {
                     currentState = data.state;
                     renderMessages(currentState.message_history.messages);
+                    updateGameStatus(currentState);
                     input.value = '';
                 } else {
                     showError(`Error: ${data.error || 'Unknown error'}`);
