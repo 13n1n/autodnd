@@ -9,7 +9,7 @@ class HexNavigation:
     """Utilities for hex grid navigation and movement."""
 
     # Hex neighbor offsets in axial coordinates (q, r)
-    # For flat-topped hexagons: 6 neighbors
+    # For pointy-topped hexagons: 6 neighbors
     HEX_DIRECTIONS = [
         (+1, 0),  # East
         (+1, -1),  # Northeast

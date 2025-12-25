@@ -474,12 +474,38 @@ def submit_action(game_id: str):
     if not player_id:
         player_id = engine.state.players[0].player_id
 
-    # Create action from text (simplified - in real implementation, parse action text)
+    # Parse action text to determine action type
+    import re
+    action_type = ActionType.TALK
+    action_parameters = {"text": action_text}
+    
+    # Check for move commands: "move to hex (q, r)" or "move to (q, r)" or similar patterns
+    move_patterns = [
+        r"move\s+to\s+hex\s*\(?\s*(\d+)\s*,\s*(\d+)\s*\)?",
+        r"move\s+to\s*\(?\s*(\d+)\s*,\s*(\d+)\s*\)?",
+        r"go\s+to\s*\(?\s*(\d+)\s*,\s*(\d+)\s*\)?",
+    ]
+    
+    for pattern in move_patterns:
+        match = re.search(pattern, action_text, re.IGNORECASE)
+        if match:
+            try:
+                q = int(match.group(1))
+                r = int(match.group(2))
+                action_type = ActionType.MOVE
+                action_parameters = {
+                    "target_coordinate": {"q": q, "r": r}
+                }
+                break
+            except (ValueError, IndexError):
+                pass
+
+    # Create action
     action = Action(
         action_id=str(uuid.uuid4()),
-        action_type=ActionType.TALK,  # Default to TALK for text actions
-        parameters={"text": action_text},
-        time_cost=TimeCost.NO_TIME,
+        action_type=action_type,
+        parameters=action_parameters,
+        time_cost=TimeCost.NO_TIME if action_type == ActionType.TALK else TimeCost.HALF_DAY,
         player_id=player_id,
     )
 
@@ -669,12 +695,27 @@ def game_view(game_id: str):
 
 def _serialize_state_for_api(state: GameState) -> dict:
     """Serialize state for API (exclude internal data)."""
+    # Serialize world_map cells
+    world_map_serialized = {
+        "cells": {
+            f"({q},{r})": {
+                "coordinates": {"q": cell.coordinates.q, "r": cell.coordinates.r},
+                "terrain": cell.terrain.value,
+                "contents": cell.contents,
+                "discovered": cell.discovered,
+                "description": cell.description,
+            }
+            for (q, r), cell in state.world_map.cells.items()
+        }
+    }
+    
     serialized = {
         "game_id": state.game_id,
         "state_version": state.state_version,
         "created_at": state.created_at.isoformat(),
         "players": [player.model_dump() for player in state.players],
         "current_time": state.current_time.model_dump(),
+        "world_map": world_map_serialized,
         "message_history": {
             "messages": [
                 {

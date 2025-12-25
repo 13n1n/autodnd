@@ -146,10 +146,24 @@
             background: rgba(100, 150, 200, 0.2);
         }
 
+        .hex-cell.semi-discovered {
+            background: rgba(100, 150, 200, 0.1);
+            opacity: 0.6;
+        }
+
         .hex-cell.current {
             background: rgba(74, 144, 226, 0.4);
             border: 2px solid #4a90e2;
             font-weight: bold;
+        }
+
+        .hex-cell.neighbor {
+            border: 1px dashed rgba(107, 255, 107, 0.5);
+        }
+
+        .hex-cell.neighbor:hover {
+            background: rgba(107, 255, 107, 0.2);
+            border-color: rgba(107, 255, 107, 0.8);
         }
 
         .hex-cell:hover {
@@ -737,6 +751,142 @@
             margin: 1rem;
             color: #ff6b6b;
         }
+
+        /* Full-screen map modal */
+        .map-modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            animation: fadeIn 0.2s;
+        }
+
+        .map-modal.show {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .map-modal-header {
+            padding: 1rem 2rem;
+            background: rgba(0, 0, 0, 0.5);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .map-modal-header h2 {
+            color: #fff;
+            margin: 0;
+        }
+
+        .map-modal-close {
+            background: #4a90e2;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+
+        .map-modal-close:hover {
+            background: #357abd;
+        }
+
+        .map-container {
+            flex: 1;
+            overflow: hidden;
+            padding: 0;
+            position: relative;
+        }
+
+        .hex-map-svg {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            cursor: grab;
+            transition: transform 0.1s ease-out;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .hex-map-svg:active {
+            cursor: grabbing;
+        }
+
+        .hex-map-svg.dragging {
+            transition: none;
+        }
+
+        .hex-cell-svg {
+            cursor: pointer;
+            stroke: rgba(255, 255, 255, 0.3);
+            stroke-width: 1;
+            transition: all 0.2s;
+        }
+
+        .hex-cell-svg:hover {
+            stroke: rgba(255, 255, 255, 0.8);
+            stroke-width: 2;
+            filter: brightness(1.2);
+        }
+
+        .hex-cell-svg.current {
+            stroke: #4a90e2;
+            stroke-width: 3;
+            filter: brightness(1.3);
+        }
+
+        .hex-cell-svg.discovered {
+            opacity: 1;
+        }
+
+        .hex-cell-svg.undiscovered {
+            opacity: 0.3;
+            filter: grayscale(0.8);
+        }
+
+        .hex-cell-svg.neighbor {
+            stroke: rgba(107, 255, 107, 0.6);
+            stroke-width: 2;
+        }
+
+        .hex-cell-svg.neighbor:hover {
+            stroke: #6bff6b;
+            stroke-width: 3;
+            filter: brightness(1.4);
+        }
+
+        .hex-icon {
+            font-size: 20px;
+            text-anchor: middle;
+            dominant-baseline: central;
+            pointer-events: none;
+        }
+
+        .hex-label {
+            font-size: 10px;
+            text-anchor: middle;
+            dominant-baseline: central;
+            fill: rgba(255, 255, 255, 0.7);
+            pointer-events: none;
+        }
+
+        .terrain-plains { fill: #90EE90; }
+        .terrain-forest { fill: #228B22; }
+        .terrain-mountain { fill: #8B7355; }
+        .terrain-water { fill: #4169E1; }
+        .terrain-desert { fill: #F4A460; }
+        .terrain-swamp { fill: #556B2F; }
+        .terrain-road { fill: #D3D3D3; }
+        .terrain-city { fill: #696969; }
+        .terrain-dungeon { fill: #2F2F2F; }
     </style>
 </head>
 <body>
@@ -798,6 +948,7 @@
                         <!-- Hex map will be populated by JavaScript -->
                     </div>
                     <div class="hex-coords" id="hexCoords">Position: (0, 0)</div>
+                    <button onclick="openFullScreenMap()" class="btn-map-fullscreen" style="margin-top: 0.5rem; width: 100%; padding: 0.5rem; background: #4a90e2; color: white; border: none; border-radius: 4px; cursor: pointer;">🗺️ Full Screen Map</button>
                 </div>
             </div>
         </div>
@@ -855,6 +1006,17 @@
                     <button type="submit" class="btn-primary">Save & Apply</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Full Screen Map Modal -->
+    <div id="mapModal" class="map-modal">
+        <div class="map-modal-header">
+            <h2>🗺️ World Map</h2>
+            <button class="map-modal-close" onclick="closeFullScreenMap()">Close</button>
+        </div>
+        <div class="map-container" id="mapContainer">
+            <svg id="hexMapSvg" class="hex-map-svg" width="1200" height="800"></svg>
         </div>
     </div>
 
@@ -1151,6 +1313,19 @@
             updateHexMap(state, player);
         }
 
+        // Hex distance calculation (for hex grids)
+        function hexDistance(q1, r1, q2, r2) {
+            // Convert axial to cube coordinates
+            const x1 = q1;
+            const z1 = r1;
+            const y1 = -x1 - z1;
+            const x2 = q2;
+            const z2 = r2;
+            const y2 = -x2 - z2;
+            // Cube distance
+            return (Math.abs(x1 - x2) + Math.abs(y1 - y2) + Math.abs(z1 - z2)) / 2;
+        }
+
         // Update hex map display
         function updateHexMap(state, player) {
             const hexMapGrid = document.getElementById('hexMapGrid');
@@ -1167,51 +1342,64 @@
             const map = state.world_map || { cells: {} };
             const cells = map.cells || {};
             
-            // Get a 5x5 grid around player (simplified display)
+            // Get neighbors for semi-discovered display
+            const neighborCoords = getHexNeighbors(player.position.q, player.position.r);
             const radius = 2;
-            const discoveredCells = [];
+            const displayCells = [];
             
-            // Find all discovered cells
-            Object.values(cells).forEach(cell => {
-                if (cell && cell.discovered) {
-                    discoveredCells.push(cell);
-                }
-            });
-
-            // If player position cell doesn't exist, add it
+            // Add player's current cell
             const playerKey = `(${player.position.q},${player.position.r})`;
-            let playerCellExists = false;
-            discoveredCells.forEach(cell => {
-                if (cell.coordinates.q === player.position.q && cell.coordinates.r === player.position.r) {
-                    playerCellExists = true;
+            const playerCell = cells[playerKey];
+            displayCells.push({
+                coordinates: { q: player.position.q, r: player.position.r },
+                terrain: playerCell ? playerCell.terrain : 'plains',
+                discovered: true,
+                isCurrent: true
+            });
+
+            // Add all discovered cells within radius
+            Object.values(cells).forEach(cell => {
+                if (cell && cell.coordinates) {
+                    const q = cell.coordinates.q;
+                    const r = cell.coordinates.r;
+                    const dist = hexDistance(player.position.q, player.position.r, q, r);
+                    
+                    if (dist <= radius) {
+                        const existing = displayCells.find(c => 
+                            c.coordinates.q === q && c.coordinates.r === r
+                        );
+                        if (!existing) {
+                            displayCells.push({
+                                coordinates: { q, r },
+                                terrain: cell.terrain || 'plains',
+                                discovered: cell.discovered || false,
+                                isCurrent: false
+                            });
+                        }
+                    }
                 }
             });
 
-            if (!playerCellExists) {
-                // Add current cell
-                discoveredCells.push({
-                    coordinates: player.position,
-                    terrain: 'plains',
-                    discovered: true
-                });
-            }
-
-            // Build simple grid display
-            // For now, show a simplified view of discovered cells around player
-            const displayCells = discoveredCells
-                .filter(cell => {
-                    const dist = Math.abs(cell.coordinates.q - player.position.q) + 
-                                 Math.abs(cell.coordinates.r - player.position.r);
-                    return dist <= radius;
-                })
-                .sort((a, b) => {
-                    // Sort by distance
-                    const distA = Math.abs(a.coordinates.q - player.position.q) + 
-                                  Math.abs(a.coordinates.r - player.position.r);
-                    const distB = Math.abs(b.coordinates.q - player.position.q) + 
-                                  Math.abs(b.coordinates.r - player.position.r);
-                    return distA - distB;
-                });
+            // Add neighbor cells (semi-discovered) if not already added
+            neighborCoords.forEach(neighbor => {
+                const existing = displayCells.find(c => 
+                    c.coordinates.q === neighbor.q && c.coordinates.r === neighbor.r
+                );
+                if (!existing) {
+                    const neighborKey = `(${neighbor.q},${neighbor.r})`;
+                    const neighborCell = cells[neighborKey];
+                    displayCells.push({
+                        coordinates: { q: neighbor.q, r: neighbor.r },
+                        terrain: neighborCell ? neighborCell.terrain : 'plains',
+                        discovered: neighborCell ? (neighborCell.discovered || false) : false,
+                        isCurrent: false,
+                        isNeighbor: true
+                    });
+                } else {
+                    // Mark as neighbor if it's within range
+                    existing.isNeighbor = true;
+                }
+            });
 
             if (displayCells.length === 0) {
                 hexMapGrid.innerHTML = '<div style="color: rgba(255,255,255,0.5); text-align: center; padding: 1rem;">No map data</div>';
@@ -1236,15 +1424,444 @@
                 return `
                     <div class="hex-map-row">
                         ${rowCells.map(cell => {
-                            const isCurrent = cell.coordinates.q === player.position.q && 
-                                            cell.coordinates.r === player.position.r;
-                            const cellClass = `hex-cell ${cell.discovered ? 'discovered' : ''} ${isCurrent ? 'current' : ''}`;
+                            const isCurrent = cell.isCurrent || 
+                                (cell.coordinates.q === player.position.q && 
+                                 cell.coordinates.r === player.position.r);
+                            const isNeighbor = cell.isNeighbor && !isCurrent;
+                            let cellClass = `hex-cell`;
+                            if (cell.discovered) {
+                                cellClass += ' discovered';
+                            } else if (isNeighbor) {
+                                cellClass += ' semi-discovered';
+                            }
+                            if (isCurrent) {
+                                cellClass += ' current';
+                            }
+                            if (isNeighbor) {
+                                cellClass += ' neighbor';
+                            }
                             const terrainChar = cell.terrain ? cell.terrain.charAt(0).toUpperCase() : '?';
                             return `<div class="${cellClass}" title="(${cell.coordinates.q}, ${cell.coordinates.r}) - ${cell.terrain || 'unknown'}">${terrainChar}</div>`;
                         }).join('')}
                     </div>
                 `;
             }).join('');
+        }
+
+        // Drag state for map
+        let mapDragState = {
+            isDragging: false,
+            startX: 0,
+            startY: 0,
+            offsetX: 0,
+            offsetY: 0
+        };
+
+        // Full-screen map functions
+        function openFullScreenMap() {
+            const modal = document.getElementById('mapModal');
+            const svg = document.getElementById('hexMapSvg');
+            modal.classList.add('show');
+            
+            if (currentState) {
+                renderFullScreenMap(currentState);
+                // Center on player after rendering (small delay to ensure container has dimensions)
+                setTimeout(() => {
+                    centerMapOnPlayer(currentState);
+                }, 10);
+            }
+        }
+
+        // Center map on player position
+        function centerMapOnPlayer(state) {
+            const svg = document.getElementById('hexMapSvg');
+            const mapContainer = document.getElementById('mapContainer');
+            if (!svg || !mapContainer || !state || !state.players || state.players.length === 0) {
+                return;
+            }
+
+            const player = state.players[0];
+            const playerPos = player.position;
+            const map = state.world_map || { cells: {} };
+            const cells = map.cells || {};
+
+            // Get all cells to calculate bounds (same as in renderFullScreenMap)
+            const allCells = [];
+            Object.values(cells).forEach(cell => {
+                if (cell && cell.coordinates) {
+                    allCells.push({
+                        q: cell.coordinates.q,
+                        r: cell.coordinates.r
+                    });
+                }
+            });
+
+            // Add player cell if not in map
+            const playerCellExists = allCells.find(c => c.q === playerPos.q && c.r === playerPos.r);
+            if (!playerCellExists) {
+                allCells.push({
+                    q: playerPos.q,
+                    r: playerPos.r
+                });
+            }
+
+            if (allCells.length === 0) {
+                return;
+            }
+
+            const minQ = Math.min(...allCells.map(c => c.q));
+            const minR = Math.min(...allCells.map(c => c.r));
+
+            const hexSize = 40;
+            const padding = 50;
+
+            // Calculate player's position in pixel coordinates relative to map bounds
+            // This matches the calculation in renderFullScreenMap
+            const playerPixel = hexToPixel(playerPos.q - minQ, playerPos.r - minR, hexSize);
+            const playerX = playerPixel.x + padding + hexSize * Math.sqrt(3);
+            const playerY = playerPixel.y + padding + hexSize;
+
+            // Get SVG dimensions
+            const svgWidth = parseFloat(svg.getAttribute('width')) || 1200;
+            const svgHeight = parseFloat(svg.getAttribute('height')) || 800;
+
+            // Get container dimensions (viewport)
+            const containerWidth = mapContainer.clientWidth;
+            const containerHeight = mapContainer.clientHeight;
+
+            // Calculate offset to center player in viewport
+            // The SVG is positioned with top: 50%, left: 50%, and transform: translate(-50%, -50%)
+            // The -50% moves the SVG so its center is at (containerWidth/2, containerHeight/2)
+            // Then we add offsetX, offsetY
+            // 
+            // A point at (playerX, playerY) in SVG coordinates will be at screen position:
+            // X: containerWidth/2 - svgWidth/2 + offsetX + playerX
+            // Y: containerHeight/2 - svgHeight/2 + offsetY + playerY
+            //
+            // We want this to be at container center:
+            // containerWidth/2 = containerWidth/2 - svgWidth/2 + offsetX + playerX
+            // Solving: offsetX = svgWidth/2 - playerX
+            mapDragState.offsetX = (svgWidth / 2) - playerX;
+            mapDragState.offsetY = (svgHeight / 2) - playerY;
+
+            updateMapTransform(svg);
+        }
+
+        function closeFullScreenMap() {
+            const modal = document.getElementById('mapModal');
+            modal.classList.remove('show');
+        }
+
+        // Update map transform
+        function updateMapTransform(svg) {
+            svg.style.transform = `translate(calc(-50% + ${mapDragState.offsetX}px), calc(-50% + ${mapDragState.offsetY}px))`;
+        }
+
+        // Setup drag functionality for map
+        function setupMapDrag(svg) {
+            svg.addEventListener('mousedown', (e) => {
+                // Don't drag if clicking on a clickable hex cell (neighbors)
+                if (e.target.tagName === 'path' && e.target.classList.contains('neighbor')) {
+                    return; // Allow click to work
+                }
+                
+                mapDragState.isDragging = true;
+                mapDragState.startX = e.clientX - mapDragState.offsetX;
+                mapDragState.startY = e.clientY - mapDragState.offsetY;
+                svg.classList.add('dragging');
+                e.preventDefault();
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (!mapDragState.isDragging) return;
+                
+                mapDragState.offsetX = e.clientX - mapDragState.startX;
+                mapDragState.offsetY = e.clientY - mapDragState.startY;
+                
+                updateMapTransform(svg);
+                e.preventDefault();
+            });
+
+            document.addEventListener('mouseup', () => {
+                if (mapDragState.isDragging) {
+                    mapDragState.isDragging = false;
+                    svg.classList.remove('dragging');
+                }
+            });
+
+            // Also handle touch events for mobile
+            svg.addEventListener('touchstart', (e) => {
+                // Don't drag if clicking on a clickable hex cell
+                if (e.target.tagName === 'path' && e.target.classList.contains('neighbor')) {
+                    return;
+                }
+                
+                const touch = e.touches[0];
+                mapDragState.isDragging = true;
+                mapDragState.startX = touch.clientX - mapDragState.offsetX;
+                mapDragState.startY = touch.clientY - mapDragState.offsetY;
+                svg.classList.add('dragging');
+                e.preventDefault();
+            });
+
+            document.addEventListener('touchmove', (e) => {
+                if (!mapDragState.isDragging) return;
+                
+                const touch = e.touches[0];
+                mapDragState.offsetX = touch.clientX - mapDragState.startX;
+                mapDragState.offsetY = touch.clientY - mapDragState.startY;
+                
+                updateMapTransform(svg);
+                e.preventDefault();
+            });
+
+            document.addEventListener('touchend', () => {
+                if (mapDragState.isDragging) {
+                    mapDragState.isDragging = false;
+                    svg.classList.remove('dragging');
+                }
+            });
+        }
+
+        // Hex neighbor calculation (axial coordinates)
+        function getHexNeighbors(q, r) {
+            return [
+                {q: q + 1, r: r},      // East
+                {q: q + 1, r: r - 1},  // Northeast
+                {q: q, r: r - 1},      // Northwest
+                {q: q - 1, r: r},      // West
+                {q: q - 1, r: r + 1},  // Southwest
+                {q: q, r: r + 1}       // Southeast
+            ];
+        }
+
+        // Convert hex coordinates to pixel position (pointy-topped hexagons)
+        function hexToPixel(q, r, size = 30) {
+            const x = size * (Math.sqrt(3) * q + Math.sqrt(3) / 2 * r);
+            const y = size * (3/2 * r);
+            return {x, y};
+        }
+
+        // Terrain icons mapping
+        const terrainIcons = {
+            'plains': '🌾',
+            'forest': '🌲',
+            'mountain': '⛰️',
+            'water': '🌊',
+            'desert': '🏜️',
+            'swamp': '🌿',
+            'road': '🛤️',
+            'city': '🏛️',
+            'dungeon': '🏰'
+        };
+
+        // Render full-screen hex map
+        function renderFullScreenMap(state) {
+            const svg = document.getElementById('hexMapSvg');
+            if (!svg || !state || !state.players || state.players.length === 0) {
+                return;
+            }
+
+            const player = state.players[0];
+            const playerPos = player.position;
+            const map = state.world_map || { cells: {} };
+            const cells = map.cells || {};
+
+            // Get ALL cells from the map (full map view)
+            const allCells = [];
+            const neighborCoords = getHexNeighbors(playerPos.q, playerPos.r);
+            
+            // Add all cells from the world map
+            Object.values(cells).forEach(cell => {
+                if (cell && cell.coordinates) {
+                    allCells.push({
+                        q: cell.coordinates.q,
+                        r: cell.coordinates.r,
+                        terrain: cell.terrain || 'plains',
+                        discovered: cell.discovered || false,
+                        contents: cell.contents || []
+                    });
+                }
+            });
+
+            // If player's current cell doesn't exist in map, add it
+            const playerCellKey = `(${playerPos.q},${playerPos.r})`;
+            const playerCell = cells[playerCellKey];
+            const playerCellExists = allCells.find(c => c.q === playerPos.q && c.r === playerPos.r);
+            if (!playerCellExists) {
+                allCells.push({
+                    q: playerPos.q,
+                    r: playerPos.r,
+                    terrain: playerCell ? playerCell.terrain : 'plains',
+                    discovered: true,
+                    contents: playerCell ? (playerCell.contents || []) : []
+                });
+            }
+
+            // Calculate bounds and center
+            if (allCells.length === 0) {
+                svg.innerHTML = '<text x="600" y="400" text-anchor="middle" fill="white">No map data</text>';
+                return;
+            }
+
+            const minQ = Math.min(...allCells.map(c => c.q));
+            const maxQ = Math.max(...allCells.map(c => c.q));
+            const minR = Math.min(...allCells.map(c => c.r));
+            const maxR = Math.max(...allCells.map(c => c.r));
+
+            const hexSize = 40;
+            const padding = 50;
+            // For pointy-topped hexagons: width is sqrt(3) * size, height is 3/2 * size
+            // Calculate proper width/height to fit all hexes
+            const width = (maxQ - minQ + 1) * hexSize * Math.sqrt(3) + padding * 2;
+            const height = (maxR - minR + 1) * hexSize * 1.5 + padding * 2;
+
+            // Set SVG size to fit all cells (use viewBox for scaling)
+            const svgWidth = Math.max(1200, width);
+            const svgHeight = Math.max(800, height);
+            svg.setAttribute('width', svgWidth);
+            svg.setAttribute('height', svgHeight);
+            svg.setAttribute('viewBox', `0 0 ${svgWidth} ${svgHeight}`);
+            svg.setAttribute('preserveAspectRatio', 'none');
+
+            // Setup drag handlers (only once)
+            if (!svg.hasAttribute('data-drag-setup')) {
+                setupMapDrag(svg);
+                svg.setAttribute('data-drag-setup', 'true');
+            }
+
+            // Clear SVG
+            svg.innerHTML = '';
+
+            // Create hexagon path (pointy-topped hexagons)
+            // For pointy-topped: start from rightmost point (30°), then 90°, 150°, 210°, 270°, 330°
+            function createHexPath(x, y, size) {
+                const points = [];
+                for (let i = 0; i < 6; i++) {
+                    // Start at 30° (rightmost point) for pointy-topped hexagons
+                    // Angles: 30°, 90°, 150°, 210°, 270°, 330°
+                    const angle = Math.PI / 6 + Math.PI / 3 * i;
+                    const px = x + size * Math.cos(angle);
+                    const py = y + size * Math.sin(angle);
+                    points.push(`${px},${py}`);
+                }
+                return `M ${points.join(' L ')} Z`;
+            }
+
+            // Render each cell
+            allCells.forEach(cell => {
+                const pixel = hexToPixel(cell.q - minQ, cell.r - minR, hexSize);
+                // For pointy-topped: center offset is sqrt(3) for x, size for y
+                const x = pixel.x + padding + hexSize * Math.sqrt(3);
+                const y = pixel.y + padding + hexSize;
+
+                const isCurrent = cell.q === playerPos.q && cell.r === playerPos.r;
+                const isNeighbor = neighborCoords.some(n => n.q === cell.q && n.r === cell.r);
+                
+                let classes = `hex-cell-svg terrain-${cell.terrain}`;
+                if (isCurrent) {
+                    classes += ' current';
+                } else if (isNeighbor && !isCurrent) {
+                    classes += ' neighbor';
+                }
+                if (!cell.discovered) {
+                    classes += ' undiscovered';
+                } else {
+                    classes += ' discovered';
+                }
+
+                const hexPath = createHexPath(x, y, hexSize);
+                const hex = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                hex.setAttribute('d', hexPath);
+                hex.setAttribute('class', classes);
+                hex.setAttribute('data-q', cell.q);
+                hex.setAttribute('data-r', cell.r);
+                
+                if (isNeighbor && !isCurrent) {
+                    hex.style.cursor = 'pointer';
+                    hex.addEventListener('click', () => moveToHex(cell.q, cell.r));
+                }
+
+                svg.appendChild(hex);
+
+                // Add icon (always show, but with reduced opacity if undiscovered)
+                const icon = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                icon.setAttribute('x', x);
+                icon.setAttribute('y', y);
+                icon.setAttribute('class', 'hex-icon');
+                if (!cell.discovered && !isNeighbor) {
+                    icon.setAttribute('opacity', '0.3');
+                }
+                icon.textContent = terrainIcons[cell.terrain] || '❓';
+                svg.appendChild(icon);
+
+                // Add coordinates label
+                const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                label.setAttribute('x', x);
+                label.setAttribute('y', y + hexSize + 5);
+                label.setAttribute('class', 'hex-label');
+                label.textContent = `(${cell.q},${cell.r})`;
+                svg.appendChild(label);
+            });
+        }
+
+        // Move hero to clicked hex
+        async function moveToHex(q, r) {
+            const player = currentState.players[0];
+            const currentQ = player.position.q;
+            const currentR = player.position.r;
+            
+            // Verify it's a neighbor
+            const neighbors = getHexNeighbors(currentQ, currentR);
+            const isNeighbor = neighbors.some(n => n.q === q && n.r === r);
+            
+            if (!isNeighbor) {
+                alert('You can only move to adjacent hexes!');
+                return;
+            }
+
+            // Submit move action
+            const input = document.getElementById('actionInput');
+            const btn = document.getElementById('submitBtn');
+            
+            input.disabled = true;
+            btn.disabled = true;
+            document.body.classList.add('loading');
+            clearError();
+            
+            try {
+                const response = await fetch(`${API_BASE}/games/${gameId}/action`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        action: `move to hex (${q}, ${r})`,
+                    }),
+                });
+                
+                const data = await response.json();
+
+                if (data.success) {
+                    currentState = data.state;
+                    // Debug: log player position
+                    if (currentState.players && currentState.players.length > 0) {
+                        console.log('Player position after move:', currentState.players[0].position);
+                    }
+                    renderMessages(currentState.message_history.messages);
+                    updateGameStatus(currentState);
+                    renderFullScreenMap(currentState); // Update map
+                } else {
+                    showError(`Error: ${data.error || 'Unknown error'}`);
+                }
+            } catch (error) {
+                console.error('Error moving:', error);
+                showError(`Error moving: ${error.message}`);
+            } finally {
+                input.disabled = false;
+                btn.disabled = false;
+                document.body.classList.remove('loading');
+            }
         }
 
         function toggleDetails(messageDiv) {
@@ -1288,8 +1905,17 @@
 
                 if (data.success) {
                     currentState = data.state;
+                    // Debug: log player position
+                    if (currentState.players && currentState.players.length > 0) {
+                        console.log('Player position after action:', currentState.players[0].position);
+                    }
                     renderMessages(currentState.message_history.messages);
                     updateGameStatus(currentState);
+                    // Update full-screen map if it's open
+                    const mapModal = document.getElementById('mapModal');
+                    if (mapModal && mapModal.classList.contains('show')) {
+                        renderFullScreenMap(currentState);
+                    }
                     input.value = '';
                 } else {
                     showError(`Error: ${data.error || 'Unknown error'}`);
@@ -1501,9 +2127,17 @@
 
         // Close modal on outside click
         window.onclick = function(event) {
-            const modal = document.getElementById('configModal');
-            if (event.target === modal) {
+            const configModal = document.getElementById('configModal');
+            if (event.target === configModal) {
                 closeConfigModal();
+            }
+            const securityModal = document.getElementById('securityModal');
+            if (event.target === securityModal) {
+                closeSecurityModal();
+            }
+            const mapModal = document.getElementById('mapModal');
+            if (event.target === mapModal) {
+                closeFullScreenMap();
             }
         }
 
