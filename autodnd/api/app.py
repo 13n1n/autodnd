@@ -55,7 +55,10 @@ app = Flask("flask.autodnd", static_folder=STATIC_DIR, static_url_path="/static"
 
 @app.before_request
 def log_request_info():
-    app.logger.info('Access to: %s from %s', request.url, request.remote_addr or "unknown")
+    app.logger.info('Access to: %s from %s (%s)',
+        request.url,
+        request.headers.get('X-Forwarded-For', request.remote_addr),
+        request.headers.get('User-Agent'))
 
 
 # Error handlers for API routes
