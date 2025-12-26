@@ -24,6 +24,7 @@ class MessageType(str, Enum):
     RESPONSE = "response"
     DIALOGUE = "dialogue"
     TOOL_OUTPUT = "tool_output"
+    TOOL_CALL = "tool_call"
     SYSTEM = "system"
 
 
