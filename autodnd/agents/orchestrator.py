@@ -68,7 +68,7 @@ class AgentOrchestrator:
             player_id: Optional player ID
 
         Returns:
-            Tuple of (master_response, list_of_messages)
+            List of messages
         """
         messages: list[Message] = []
 

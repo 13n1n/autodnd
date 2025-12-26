@@ -1,6 +1,6 @@
 """Main game engine for state management and action processing."""
 
-import uuid
+import uuid, logging
 from datetime import datetime
 from typing import Optional
 
@@ -126,6 +126,8 @@ class GameEngine:
             master_response, agent_messages = self._orchestrator.process_player_action(
                 action_text, temp_state, action.player_id
             )
+
+            logging.info("MASTER RESPONSE: %s", master_response)
 
             # Add all agent messages to history
             for msg in agent_messages:

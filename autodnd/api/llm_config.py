@@ -80,7 +80,7 @@ class LLMConfigManager:
                 case "ollama":
                     kwargs["base_url"] = self._config.base_url or DEFAULT_OLLAMA_BASE_URL
                     kwargs["api_key"] = DEFAULT_OLLAMA_API_KEY  # Ollama doesn't require real API key
-                    kwargs["num_ctx"] = DEFAULT_LLM_NUM_CTX,
+                    kwargs["num_ctx"] = DEFAULT_LLM_NUM_CTX
                     self._llm_instance = ChatOllama(**kwargs)
                 case "openai":
                     kwargs["base_url"] = self._config.base_url or DEFAULT_OPENAI_BASE_URL

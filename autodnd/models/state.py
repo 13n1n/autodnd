@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Any, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from autodnd.models.actions import Action, CombatState, Effect
 from autodnd.models.messages import Message, MessageHistory
@@ -54,6 +54,19 @@ class GameState(BaseModel):
     storage: dict[str, str] = Field(
         default_factory=dict, description="Key-value storage for persistent game data"
     )
+
+    @computed_field
+    def title(self) -> Optional[str]:
+        """Game title computed from first line of first AI intro message."""
+        from autodnd.models.messages import MessageSource, MessageType
+        
+        for msg in self.message_history.messages:
+            if msg.source == MessageSource.MASTER and msg.message_type == MessageType.RESPONSE:
+                # Extract first line from the message content
+                first_line = msg.content.split('\n')[0].strip()
+                if first_line:
+                    return first_line
+        return None
 
     def model_dump_json(self, **kwargs) -> str:
         """Serialize to JSON string."""

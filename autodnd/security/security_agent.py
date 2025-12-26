@@ -50,7 +50,7 @@ class SecurityAgent:
         # Default to cheaper model if not provided
         if config is None:
             config = LLMConfig(
-                provider=DEFAULT_LLM_PROVIDER,
+                provider="ollama",
                 model=DEFAULT_SECURITY_LLM_MODEL,  # Cheaper model for security validation
                 temperature=DEFAULT_SECURITY_LLM_TEMPERATURE,  # Low temperature for consistent validation
                 timeout=DEFAULT_SECURITY_LLM_TIMEOUT,  # Shorter timeout for security checks
@@ -125,22 +125,7 @@ Be strict but fair. Normal gameplay actions should be marked as safe.""",
                 )
 
             # Validate against schema
-            is_valid, result, error = self.validator.validate(parsed, SecurityValidationResult)
-
-            if not is_valid:
-                logger.warning(f"Security validation result invalid: {error}")
-                # Default to safe if validation fails
-                return SecurityValidationResult(
-                    is_safe=True,
-                    risk_level="low",
-                    reason=f"Validation error: {error}",
-                )
-
-            # Log suspicious patterns
-            if not result.is_safe:
-                self.validator.log_suspicious_activity(user_input, {"result": result.model_dump()})
-
-            return result
+            return SecurityValidationResult.model_validate(parsed)
 
         except Exception as e:
             logger.error(f"Error in security validation: {e}", exc_info=True)

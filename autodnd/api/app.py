@@ -39,7 +39,7 @@ from ..security.input_sanitizer import InputSanitizer
 from ..security.security_agent import SecurityAgent
 from ..models.actions import Action, ActionType, TimeCost
 from ..models.metadata import Difficulty, GameMetadata, RulesVariant
-from ..models.messages import MessageSource, MessageType
+from ..models.messages import MessageHistory, MessageSource, MessageType
 from ..models.player import Player
 from ..models.state import GameState
 from ..models.stats import PlayerStats
@@ -220,6 +220,7 @@ def _load_game_from_state(state: GameState) -> tuple[GameEngine, GameMasterAgent
             # Fall back to default LLM
 
     # Create engine with loaded state
+    # Title will be computed automatically via computed_field
     engine = GameEngine(initial_state=state)
     
     # Setup game master with game-specific LLM if available
@@ -371,6 +372,7 @@ def list_games():
             "game_id": game_id,
             "created_at": engine.state.created_at.isoformat(),
             "state_version": engine.state.state_version,
+            "title": engine.state.title,
             "players": [{"player_id": p.player_id, "name": p.name} for p in engine.state.players],
             "metadata": engine.state.metadata.model_dump(),
         })
@@ -506,9 +508,9 @@ def submit_action(game_id: str):
     
     # Check for move commands: "move to hex (q, r)" or "move to (q, r)" or similar patterns
     move_patterns = [
-        r"move\s+to\s+hex\s*\(?\s*(\d+)\s*,\s*(\d+)\s*\)?",
-        r"move\s+to\s*\(?\s*(\d+)\s*,\s*(\d+)\s*\)?",
-        r"go\s+to\s*\(?\s*(\d+)\s*,\s*(\d+)\s*\)?",
+        r"move\s+to\s+hex\s*\(?\s*(-?\d+)\s*,\s*(-?\d+)\s*\)?",
+        r"move\s+to\s*\(?\s*(-?\d+)\s*,\s*(-?\d+)\s*\)?",
+        r"go\s+to\s*\(?\s*(-?\d+)\s*,\s*(-?\d+)\s*\)?",
     ]
     
     for pattern in move_patterns:
@@ -738,6 +740,7 @@ def _serialize_state_for_api(state: GameState) -> dict:
         "game_id": state.game_id,
         "state_version": state.state_version,
         "created_at": state.created_at.isoformat(),
+        "title": state.title,
         "players": [player.model_dump() for player in state.players],
         "current_time": state.current_time.model_dump(),
         "world_map": world_map_serialized,

@@ -548,7 +548,7 @@
                         <div class="game-card">
                             <div class="game-card-header">
                                 <div>
-                                    <div class="game-card-title">Game</div>
+                                    <div class="game-card-title">${game.title || 'Game'}</div>
                                     <div class="game-card-id">${game.game_id.substring(0, 8)}...</div>
                                 </div>
                                 <span class="${getDifficultyBadgeClass(game.metadata.difficulty)}">${game.metadata.difficulty}</span>

@@ -45,7 +45,7 @@ class SecurityConfig(BaseModel):
 
         # Default to cheaper model
         return LLMConfig(
-            provider=DEFAULT_LLM_PROVIDER,
+            provider="ollama",
             model=DEFAULT_SECURITY_LLM_MODEL,  # Cheaper model for security
             temperature=DEFAULT_SECURITY_LLM_TEMPERATURE,
             timeout=DEFAULT_SECURITY_LLM_TIMEOUT,

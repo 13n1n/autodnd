@@ -839,8 +839,20 @@
 
         .hex-cell-svg.current {
             stroke: #4a90e2;
-            stroke-width: 3;
-            filter: brightness(1.3);
+            stroke-width: 6;
+            filter: brightness(1.5) drop-shadow(0 0 8px rgba(74, 144, 226, 0.8));
+            animation: pulse-current 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse-current {
+            0%, 100% {
+                stroke-width: 6;
+                filter: brightness(1.5) drop-shadow(0 0 8px rgba(74, 144, 226, 0.8));
+            }
+            50% {
+                stroke-width: 7;
+                filter: brightness(1.7) drop-shadow(0 0 12px rgba(74, 144, 226, 1));
+            }
         }
 
         .hex-cell-svg.discovered {
@@ -1149,65 +1161,119 @@
             // Sort messages by sequence_number (ascending - youngest to oldest at bottom)
             const sortedMessages = [...messages].sort((a, b) => a.sequence_number - b.sequence_number);
             
-            sortedMessages.forEach(msg => {
-                const messageDiv = document.createElement('div');
-                messageDiv.className = `message ${msg.source}`;
+            // Group consecutive tool messages
+            let i = 0;
+            while (i < sortedMessages.length) {
+                const msg = sortedMessages[i];
                 
-                const header = document.createElement('div');
-                header.className = 'message-header';
-                header.textContent = `${msg.source.toUpperCase()}${msg.source_id ? ` (${msg.source_id})` : ''} - ${new Date(msg.timestamp).toLocaleTimeString()}`;
-                
-                const content = document.createElement('div');
-                content.className = 'message-content';
-                
-                // Render markdown for master messages, plain text for others
-                if (msg.source === 'master') {
-                    // Use marked.js to render markdown
-                    if (typeof marked !== 'undefined') {
-                        // Configure marked options
-                        marked.setOptions({
-                            breaks: true,  // Convert line breaks to <br>
-                            gfm: true,     // GitHub Flavored Markdown
-                        });
-                        content.innerHTML = marked.parse(msg.content);
-                    } else {
-                        // Fallback to plain text if marked.js not loaded
-                        content.textContent = msg.content;
-                    }
-                } else {
-                    // Plain text for non-master messages
-                    content.textContent = msg.content;
-                }
-                
-                messageDiv.appendChild(header);
-                
-                // For tool messages, wrap content in spoiler
+                // If this is a tool message, collect all consecutive tool messages
                 if (msg.source === 'tool') {
+                    const toolChain = [];
+                    while (i < sortedMessages.length && sortedMessages[i].source === 'tool') {
+                        toolChain.push(sortedMessages[i]);
+                        i++;
+                    }
+                    
+                    // Create a single message div for the tool chain
+                    const messageDiv = document.createElement('div');
+                    messageDiv.className = 'message tool';
+                    
+                    // Create header with first tool's timestamp
+                    const header = document.createElement('div');
+                    header.className = 'message-header';
+                    const toolCount = toolChain.length;
+                    header.textContent = `TOOL CHAIN (${toolCount} tool${toolCount > 1 ? 's' : ''}) - ${new Date(toolChain[0].timestamp).toLocaleTimeString()}`;
+                    messageDiv.appendChild(header);
+                    
+                    // Create spoiler toggle showing all tool titles
                     const spoilerToggle = document.createElement('button');
                     spoilerToggle.className = 'tool-spoiler-toggle';
                     spoilerToggle.type = 'button';
+                    
                     const toggleText = document.createElement('span');
-                    toggleText.textContent = `🔧 Tool: ${msg.source_id || 'Unknown Tool'}`;
+                    toggleText.style.flex = '1';
+                    toggleText.style.textAlign = 'left';
+                    
+                    // List all tool titles
+                    const toolTitles = toolChain.map((tool, idx) => {
+                        const toolName = tool.source_id || 'Unknown Tool';
+                        return `${idx + 1}. ${toolName}`;
+                    }).join(' | ');
+                    toggleText.textContent = `🔧 Tools: ${toolTitles}`;
+                    
                     const toggleArrow = document.createElement('span');
                     toggleArrow.textContent = '▼';
                     toggleArrow.className = 'tool-spoiler-arrow';
+                    
                     spoilerToggle.appendChild(toggleText);
                     spoilerToggle.appendChild(toggleArrow);
                     
+                    // Create spoiler content with expandable tool details
                     const spoilerContent = document.createElement('div');
                     spoilerContent.className = 'tool-spoiler-content';
-                    spoilerContent.appendChild(content);
                     
-                    // Add metadata if available
-                    if (msg.metadata && Object.keys(msg.metadata).length > 0) {
-                        const metadataDiv = document.createElement('div');
-                        metadataDiv.style.marginTop = '0.5rem';
-                        metadataDiv.style.paddingTop = '0.5rem';
-                        metadataDiv.style.borderTop = '1px solid rgba(155, 89, 182, 0.3)';
-                        metadataDiv.innerHTML = `<pre style="font-size: 0.9em; margin: 0;">${JSON.stringify(msg.metadata, null, 2)}</pre>`;
-                        spoilerContent.appendChild(metadataDiv);
-                    }
+                    // Add each tool as an expandable item
+                    toolChain.forEach((tool, toolIdx) => {
+                        const toolItem = document.createElement('div');
+                        toolItem.style.marginBottom = '1rem';
+                        toolItem.style.borderBottom = toolIdx < toolChain.length - 1 ? '1px solid rgba(155, 89, 182, 0.2)' : 'none';
+                        toolItem.style.paddingBottom = toolIdx < toolChain.length - 1 ? '1rem' : '0';
+                        
+                        // Tool title (always visible)
+                        const toolTitle = document.createElement('div');
+                        toolTitle.style.fontWeight = '600';
+                        toolTitle.style.color = '#d8b3e8';
+                        toolTitle.style.marginBottom = '0.5rem';
+                        toolTitle.textContent = `${toolIdx + 1}. ${tool.source_id || 'Unknown Tool'}`;
+                        toolItem.appendChild(toolTitle);
+                        
+                        // Expandable tool details
+                        const toolDetailsToggle = document.createElement('button');
+                        toolDetailsToggle.className = 'details-toggle';
+                        toolDetailsToggle.textContent = 'Show Details';
+                        toolDetailsToggle.style.width = '100%';
+                        toolDetailsToggle.style.marginTop = '0.25rem';
+                        toolDetailsToggle.style.marginBottom = '0.5rem';
+                        
+                        const toolDetails = document.createElement('div');
+                        toolDetails.className = 'message-details';
+                        toolDetails.style.display = 'none';
+                        
+                        // Tool content
+                        const toolContent = document.createElement('div');
+                        toolContent.className = 'message-content';
+                        toolContent.style.whiteSpace = 'pre-wrap';
+                        toolContent.style.wordWrap = 'break-word';
+                        toolContent.textContent = tool.content;
+                        toolDetails.appendChild(toolContent);
+                        
+                        // Tool metadata if available
+                        if (tool.metadata && Object.keys(tool.metadata).length > 0) {
+                            const metadataDiv = document.createElement('div');
+                            metadataDiv.style.marginTop = '0.5rem';
+                            metadataDiv.style.paddingTop = '0.5rem';
+                            metadataDiv.style.borderTop = '1px solid rgba(155, 89, 182, 0.3)';
+                            metadataDiv.innerHTML = `<pre style="font-size: 0.9em; margin: 0; color: rgba(255, 255, 255, 0.7);">${JSON.stringify(tool.metadata, null, 2)}</pre>`;
+                            toolDetails.appendChild(metadataDiv);
+                        }
+                        
+                        // Toggle functionality for individual tool details
+                        toolDetailsToggle.onclick = () => {
+                            if (toolDetails.style.display === 'none') {
+                                toolDetails.style.display = 'block';
+                                toolDetailsToggle.textContent = 'Hide Details';
+                            } else {
+                                toolDetails.style.display = 'none';
+                                toolDetailsToggle.textContent = 'Show Details';
+                            }
+                        };
+                        
+                        toolItem.appendChild(toolDetailsToggle);
+                        toolItem.appendChild(toolDetails);
+                        spoilerContent.appendChild(toolItem);
+                    });
                     
+                    // Main spoiler toggle functionality
                     spoilerToggle.onclick = () => {
                         if (spoilerContent.classList.contains('show')) {
                             spoilerContent.classList.remove('show');
@@ -1220,12 +1286,45 @@
                     
                     messageDiv.appendChild(spoilerToggle);
                     messageDiv.appendChild(spoilerContent);
+                    container.appendChild(messageDiv);
                 } else {
+                    // Non-tool message - render normally
+                    const messageDiv = document.createElement('div');
+                    messageDiv.className = `message ${msg.source}`;
+                    
+                    const header = document.createElement('div');
+                    header.className = 'message-header';
+                    header.textContent = `${msg.source.toUpperCase()}${msg.source_id ? ` (${msg.source_id})` : ''} - ${new Date(msg.timestamp).toLocaleTimeString()}`;
+                    
+                    const content = document.createElement('div');
+                    content.className = 'message-content';
+                    
+                    // Render markdown for master messages, plain text for others
+                    if (msg.source === 'master') {
+                        // Use marked.js to render markdown
+                        if (typeof marked !== 'undefined') {
+                            // Configure marked options
+                            marked.setOptions({
+                                breaks: true,  // Convert line breaks to <br>
+                                gfm: true,     // GitHub Flavored Markdown
+                            });
+                            content.innerHTML = marked.parse(msg.content);
+                        } else {
+                            // Fallback to plain text if marked.js not loaded
+                            content.textContent = msg.content;
+                        }
+                    } else {
+                        // Plain text for non-master messages
+                        content.textContent = msg.content;
+                    }
+                    
+                    messageDiv.appendChild(header);
                     messageDiv.appendChild(content);
+                    container.appendChild(messageDiv);
+                    
+                    i++;
                 }
-                
-                container.appendChild(messageDiv);
-            });
+            }
             
             // Scroll to bottom
             container.scrollTop = container.scrollHeight;
@@ -1811,10 +1910,24 @@
                 icon.textContent = terrainIcons[cell.terrain] || '❓';
                 svg.appendChild(icon);
 
+                // Add special player marker for current position
+                if (isCurrent) {
+                    const playerMarker = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    playerMarker.setAttribute('x', x);
+                    playerMarker.setAttribute('y', y - hexSize * 0.4);
+                    playerMarker.setAttribute('class', 'hex-icon');
+                    playerMarker.setAttribute('font-size', '28px');
+                    playerMarker.setAttribute('fill', '#4a90e2');
+                    playerMarker.setAttribute('font-weight', 'bold');
+                    playerMarker.style.filter = 'drop-shadow(0 0 4px rgba(74, 144, 226, 1))';
+                    playerMarker.textContent = '⚔️';
+                    svg.appendChild(playerMarker);
+                }
+
                 // Add coordinates label
                 const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
                 label.setAttribute('x', x);
-                label.setAttribute('y', y + hexSize + 5);
+                label.setAttribute('y', y + hexSize/2);
                 label.setAttribute('class', 'hex-label');
                 label.textContent = `(${cell.q},${cell.r})`;
                 svg.appendChild(label);

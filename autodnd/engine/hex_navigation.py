@@ -66,31 +66,6 @@ class HexNavigation:
             return HexNavigation.DIRECTION_ABBREVIATIONS.index(name_upper)
         return None
 
-    @staticmethod
-    def distance(coord1: HexCoordinate, coord2: HexCoordinate) -> int:
-        """
-        Calculate hex distance between two coordinates.
-
-        Args:
-            coord1: First coordinate
-            coord2: Second coordinate
-
-        Returns:
-            Distance in hex cells
-        """
-        # Convert axial to cube coordinates for distance calculation
-        def axial_to_cube(q: int, r: int) -> tuple[int, int, int]:
-            x = q
-            z = r
-            y = -x - z
-            return (x, y, z)
-
-        def cube_distance(cube1: tuple[int, int, int], cube2: tuple[int, int, int]) -> int:
-            return (abs(cube1[0] - cube2[0]) + abs(cube1[1] - cube2[1]) + abs(cube1[2] - cube2[2])) // 2
-
-        cube1 = axial_to_cube(coord1.q, coord1.r)
-        cube2 = axial_to_cube(coord2.q, coord2.r)
-        return cube_distance(cube1, cube2)
 
     @staticmethod
     def is_valid_move(
@@ -107,30 +82,10 @@ class HexNavigation:
         Returns:
             Tuple of (is_valid, error_message)
         """
-        # Check if target is a neighbor
-        neighbors = HexNavigation.get_all_neighbors(current)
-        if target not in neighbors:
-            dist = HexNavigation.distance(current, target)
-            if dist == 1:
-                # Should be a neighbor but isn't - this shouldn't happen
-                return False, "Invalid coordinate calculation"
-            return False, f"Target is not adjacent (distance: {dist})"
-
-        # Check if target cell exists or can be created
-        # (We allow movement to undiscovered cells)
-        target_cell = world_map.get_cell(target)
-        if target_cell is None:
-            # Cell doesn't exist yet - this is OK, it will be created
+        print(abs(current.q - target.q), abs(current.r - target.r))
+        if abs(current.q - target.q) <= 1 and abs(current.r - target.r) <= 1:
             return True, None
-
-        # Check if terrain is passable (water might not be passable, etc.)
-        # For now, all terrain is passable, but this can be extended
-        if target_cell.terrain == TerrainType.WATER:
-            # Water might require special handling (boat, swimming, etc.)
-            # For now, allow it but it could be restricted later
-            pass
-
-        return True, None
+        return False, "Target is not adjacent"
 
     @staticmethod
     def get_movement_cost(

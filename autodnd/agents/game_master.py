@@ -200,12 +200,9 @@ Remember: Check player position FIRST, then generate content that matches that l
         Returns:
             Tuple of (final_response_text, list_of_tool_messages)
         """
-        import pprint
         tool_messages: list[Message] = []
         sequence = sequence_start
         final_response = ""
-
-        logging.debug("Extracting tool calls from result: %s", pprint.pformat(result))
 
         if result.get("messages"):
             for msg in result["messages"]:
@@ -360,7 +357,7 @@ Remember: Your first line will become the game title. Make it count!"""
                                 )
                             )
                     # Tool calls are already embedded in AIMessage, so we don't need to convert them
-            
+
             # Convert pleaseure to LangChain format
             pleaseure_messages = []
             if intro_message is None:
