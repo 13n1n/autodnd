@@ -225,6 +225,17 @@
             background: #357abd;
         }
 
+        .btn-small-danger {
+            background: rgba(255, 0, 0, 0.2);
+            color: #ff6b6b;
+            border: 1px solid rgba(255, 0, 0, 0.3);
+        }
+
+        .btn-small-danger:hover {
+            background: rgba(255, 0, 0, 0.3);
+            border-color: rgba(255, 0, 0, 0.5);
+        }
+
         .empty-state {
             text-align: center;
             padding: 3rem;
@@ -560,6 +571,9 @@
                                 <button class="btn-small btn-small-primary" onclick="openGame('${game.game_id}')">
                                     Open Game
                                 </button>
+                                <button class="btn-small btn-small-danger" onclick="deleteGame('${game.game_id}')" title="Delete game and all state files">
+                                    Delete
+                                </button>
                             </div>
                         </div>
                     `).join('')}
@@ -569,6 +583,31 @@
 
         function openGame(gameId) {
             window.location.href = `/game/${gameId}`;
+        }
+
+        async function deleteGame(gameId) {
+            // Confirm deletion
+            if (!confirm('Are you sure you want to delete this game? This will permanently delete the game and all its state files. This action cannot be undone.')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/games/${gameId}`, {
+                    method: 'DELETE',
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    showMessage('Game deleted successfully!', 'success');
+                    loadGames(); // Refresh the games list
+                } else {
+                    showMessage(`Error: ${data.error || 'Failed to delete game'}`);
+                }
+            } catch (error) {
+                console.error('Error deleting game:', error);
+                showMessage(`Error deleting game: ${error.message}`);
+            }
         }
 
         async function loadGames() {

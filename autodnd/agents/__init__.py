@@ -12,6 +12,7 @@ from autodnd.agents.tools import (
     create_get_npc_info_tool,
     create_get_player_stats_tool,
     create_roll_dice_tool,
+    create_take_item_tool,
 )
 
 __all__ = [
@@ -26,4 +27,5 @@ __all__ = [
     "create_get_inventory_tool",
     "create_get_map_state_tool",
     "create_get_npc_info_tool",
+    "create_take_item_tool",
 ]

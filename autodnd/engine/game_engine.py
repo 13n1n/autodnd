@@ -416,6 +416,200 @@ class GameEngine:
         self._state = new_state
         return new_state
 
+    def take_item(
+        self,
+        item_id: str,
+        item_name: Optional[str] = None,
+        item_description: Optional[str] = None,
+        tags: Optional[list[str]] = None,
+        slot_size: int = 1,
+        stat_modifiers: Optional[dict[str, int]] = None,
+        player_id: Optional[str] = None,
+        wear: bool = False,
+    ) -> dict:
+        """
+        Take an item from a location and add it to player inventory.
+
+        Args:
+            item_id: Item ID
+            item_name: Item name (required if creating new item)
+            item_description: Item description (required if creating new item)
+            tags: Item tags
+            slot_size: Slot size (1 or 2)
+            stat_modifiers: Stat modifiers when equipped
+            player_id: Player ID
+            wear: Whether to equip the item
+            coordinate_q: Q coordinate where item is located
+            coordinate_r: R coordinate where item is located
+
+        Returns:
+            Dict with success status and message
+        """
+        if tags is None:
+            tags = []
+        if stat_modifiers is None:
+            stat_modifiers = {}
+
+        # Get player
+        player = next((p for p in self._state.players if p.player_id == player_id), None)
+        if not player:
+            return {"error": f"Player {player_id} not found"}
+
+
+        # Get or create item
+        from autodnd.models.items import Item, ItemTag, ItemLocation
+        import uuid
+
+        # Try to find existing item in player inventory first
+        existing_item = next((i for i in player.inventory.all_items if i.item_id == item_id), None)
+        
+        if existing_item:
+            # Item already in inventory
+            return {"error": f"Item {item_id} already in player inventory"}
+
+        # Check if item is a bag (bags are special - they're Bag objects, not Item objects)
+        # We'll detect this by checking if item_name/description suggests it's a bag
+        # or if there's a special indicator. For now, check if name contains "bag" (case-insensitive)
+        is_bag = False
+        if item_name:
+            is_bag = "bag" in item_name.lower()
+
+        # Create new item if needed
+        if not is_bag and item_name and item_description:
+            # Create new item
+            item_tags = [ItemTag(tag) for tag in tags if tag in [t.value for t in ItemTag]]
+            new_item = Item(
+                item_id=item_id,
+                name=item_name,
+                description=item_description,
+                tags=item_tags,
+                slot_size=slot_size,
+                stat_modifiers=stat_modifiers,
+                location=ItemLocation.INVENTORY,
+            )
+        else:
+            return {"error": "Item details not provided"}
+
+        
+        inventory = player.inventory
+        bag_index = None
+        slot_index = None
+        
+        # Handle bag items specially
+        if is_bag:
+            # Extract bag size from item description or use default
+            # Try to extract size from description or use a default
+            bag_size = stat_modifiers.get("bag_size", 6)  # Default bag size
+            if item_description:
+                # Try to extract number from description (e.g., "A bag with 8 slots")
+                import re
+                size_match = re.search(r'(\d+)\s*slot', item_description.lower())
+                if size_match:
+                    bag_size = int(size_match.group(1))
+                    bag_size = max(3, min(12, bag_size))  # Clamp between 3 and 12
+            
+            # Check if we can add more bags (max 7)
+            if len(inventory.bags) < 7:
+                # Add new bag
+                from autodnd.models.items import Bag
+                new_bag = Bag(
+                    bag_id=item_id,  # Use item_id as bag_id
+                    size=bag_size,
+                    items=[],
+                )
+                updated_bags = list(inventory.bags) + [new_bag]
+                updated_inventory = inventory.model_copy(update={"bags": updated_bags})
+            else:
+                # Find first bag with lesser storage capacity
+                replacement_bag_idx = None
+                for b_idx, bag in enumerate(inventory.bags):
+                    if bag.size < bag_size:
+                        replacement_bag_idx = b_idx
+                        break
+                
+                if replacement_bag_idx is None:
+                    return {"error": "Cannot take bag: player already has 7 bags and no bag with lesser storage capacity to replace"}
+                
+                # Replace the bag
+                from autodnd.models.items import Bag
+                new_bag = Bag(
+                    bag_id=item_id,
+                    size=bag_size,
+                    items=[],  # New bag starts empty
+                )
+                updated_bags = list(inventory.bags)
+                updated_bags[replacement_bag_idx] = new_bag
+                updated_inventory = inventory.model_copy(update={"bags": updated_bags})
+                
+                # Note: Items from replaced bag are lost (could be improved to try to preserve items)
+                result_msg = f"Bag {item_name} ({item_id}) replaced bag at index {replacement_bag_idx}"
+        else:
+            # Regular item - find first available bag slot
+            # Check if item is large (can't go in bag)
+            if ItemTag.LARGE in new_item.tags:
+                # Large items must be equipped or stored as large_item
+                if wear:
+                    try:
+                        updated_inventory = InventoryManager.equip_item(inventory, new_item)
+                    except ValueError as e:
+                        return {"error": f"Cannot equip large item: {str(e)}"}
+                else:
+                    # Can't store large items in bags, must equip or return error
+                    return {"error": "Large items cannot be stored in bags. Use wear=true to equip it."}
+            else:
+                # Place item in bag
+                try:
+                    updated_inventory = InventoryManager.place_item_in_bag(inventory, new_item, bag_index, slot_index)
+                except ValueError as e:
+                    return {"error": f"Cannot place item in bag: {str(e)}", "exception": str(e)}
+
+            # If wear=true, equip the item
+            if wear:
+                try:
+                    updated_inventory = InventoryManager.equip_item(updated_inventory, new_item)
+                except ValueError as e:
+                    # If equip fails, item is still in bag, which is fine
+                    pass
+
+        # For non-bag items, ensure item is in all_items
+        if not is_bag:
+            # Check if item is already in all_items (shouldn't be, but be safe)
+            if not any(i.item_id == item_id for i in updated_inventory.all_items):
+                updated_all_items = list(updated_inventory.all_items) + [new_item]
+                updated_inventory = updated_inventory.model_copy(update={"all_items": updated_all_items})
+
+
+        # Update player inventory
+        updated_player = player.model_copy(update={"inventory": updated_inventory})
+        updated_players = [
+            updated_player if p.player_id == player_id else p
+            for p in self._state.players
+        ]
+
+        # Create new state
+        new_state = self._state.model_copy(
+            update={
+                "state_version": self._state.state_version + 1,
+                "players": updated_players,
+            }
+        )
+        self._state = new_state
+
+        # Generate result message
+        if is_bag:
+            if len(inventory.bags) < 7:
+                result_msg = f"Bag {item_name or item_id} ({item_id}) added to inventory"
+            else:
+                result_msg = f"Bag {item_name or item_id} ({item_id}) replaced existing bag"
+        else:
+            result_msg = f"Item {new_item.name} ({item_id}) added to inventory"
+            if bag_index is not None:
+                result_msg += f" in bag {bag_index}, slot {slot_index}"
+            if wear:
+                result_msg += " and equipped"
+
+        return {"success": True, "message": result_msg, "item_id": item_id, "item_name": item_name or new_item.name}
+
     def get_storage(self, key: str) -> Optional[str]:
         """
         Get value from storage.

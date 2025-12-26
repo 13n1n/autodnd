@@ -91,14 +91,58 @@ class HexMap(BaseModel):
     @model_validator(mode='before')
     @classmethod
     def generate_map(cls, data: dict | None) -> dict:
-        """Generate random map using Perlin noise for water and hills."""
+        """
+        Convert string keys in cells dict back to tuples when loading from JSON,
+        and generate map if cells are missing.
+        
+        JSON doesn't support tuple keys, so they get serialized as strings like "50,-1".
+        This validator converts them back to tuples (50, -1).
+        """
         # Handle None or empty input
         if data is None:
             data = {}
         
-        # If cells are already provided, don't regenerate
-        if isinstance(data, dict) and 'cells' in data and data['cells']:
+        if not isinstance(data, dict):
             return data
+        
+        # Convert string keys to tuples if cells exist
+        if 'cells' in data and isinstance(data['cells'], dict):
+            cells = data['cells']
+            converted_cells = {}
+            
+            for key, value in cells.items():
+                if isinstance(key, str):
+                    # Parse string key - handle multiple formats:
+                    # "50,-1", "(50, -1)", "[50, -1]", etc.
+                    try:
+                        # Remove parentheses/brackets if present
+                        cleaned = key.strip('()[]')
+                        # Split by comma and strip whitespace
+                        parts = [p.strip() for p in cleaned.split(',')]
+                        if len(parts) == 2:
+                            q = int(parts[0])
+                            r = int(parts[1])
+                            converted_cells[(q, r)] = value
+                        else:
+                            # Invalid format, skip
+                            continue
+                    except (ValueError, AttributeError):
+                        # Invalid key format, skip
+                        continue
+                elif isinstance(key, (tuple, list)) and len(key) == 2:
+                    # Already a tuple or list, ensure it's a tuple
+                    converted_cells[tuple(key)] = value
+                else:
+                    # Keep as is (shouldn't happen, but be safe)
+                    converted_cells[key] = value
+            
+            data['cells'] = converted_cells
+            
+            # If cells were successfully converted and not empty, return early
+            if converted_cells:
+                return data
+        
+        # If cells are missing or empty, generate new map
 
         # Generate map in a radius around origin (0, 0)
         map_radius = 50  # Generate cells within 50 hexes of origin
@@ -170,6 +214,13 @@ class HexMap(BaseModel):
                     terrain = TerrainType.WATER
                 elif mountain_noise > 0.8:  # ~30% chance for mountains
                     terrain = TerrainType.MOUNTAIN
+                elif q == 0 and r == 0:
+                    terrain = random.choice([
+                        TerrainType.CITY,
+                        TerrainType.DUNGEON,
+                        TerrainType.FOREST,
+                        TerrainType.DESERT
+                    ])
                 else:
                     # Randomly choose from flat terrains
                     terrain = random.choice(flat_terrains)

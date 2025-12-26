@@ -896,6 +896,7 @@
             <h1 style="display: inline;">AutoDnD - Game</h1>
         </div>
         <div>
+            <button onclick="openDebugInspector()" style="margin-right: 0.5rem;">🐛 Debug State</button>
             <button onclick="openConfigModal()">⚙️ Configure LLM</button>
             <button onclick="openSecurityModal()" style="margin-left: 0.5rem;">🔒 Security Settings</button>
         </div>
@@ -1084,6 +1085,21 @@
                     <button type="submit" class="btn-primary">Save & Apply</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Debug State Inspector Modal -->
+    <div id="debugModal" class="modal">
+        <div class="modal-content" style="max-width: 90%; width: 90%;">
+            <div class="modal-header">
+                <h2>🐛 Debug State Inspector</h2>
+                <button class="modal-close" onclick="closeDebugInspector()">&times;</button>
+            </div>
+            <div style="margin-bottom: 1rem;">
+                <button onclick="refreshDebugState()" class="btn-secondary" style="margin-right: 0.5rem;">🔄 Refresh</button>
+                <button id="copyDebugStateBtn" onclick="copyDebugState()" class="btn-secondary">📋 Copy JSON</button>
+            </div>
+            <pre id="debugStateContent" style="background: rgba(0, 0, 0, 0.5); padding: 1rem; border-radius: 4px; overflow-x: auto; max-height: 70vh; overflow-y: auto; color: #e0e0e0; font-family: 'Courier New', monospace; font-size: 0.9em; white-space: pre-wrap; word-wrap: break-word;">No state data available</pre>
         </div>
     </div>
 
@@ -2087,6 +2103,53 @@
             }
         }
 
+        // Debug State Inspector functions
+        function openDebugInspector() {
+            const modal = document.getElementById('debugModal');
+            modal.classList.add('show');
+            refreshDebugState();
+        }
+
+        function closeDebugInspector() {
+            document.getElementById('debugModal').classList.remove('show');
+        }
+
+        function refreshDebugState() {
+            const content = document.getElementById('debugStateContent');
+            if (currentState) {
+                try {
+                    let copyState = structuredClone(currentState);
+                    copyState.world_map.cells = "<Map is here, but very large; would be copied with button above />";
+                    const formattedJson = JSON.stringify(copyState, null, 2);
+                    content.textContent = formattedJson;
+                } catch (error) {
+                    content.textContent = `Error formatting state: ${error.message}`;
+                }
+            } else {
+                content.textContent = 'No state data available. State will appear after loading the game.';
+            }
+        }
+
+        async function copyDebugState() {
+            const text = JSON.stringify(currentState, null, 2);
+
+            try {
+                await navigator.clipboard.writeText(text);
+                // Show temporary feedback
+                const btn = document.getElementById('copyDebugStateBtn');
+                if (btn) {
+                    const originalText = btn.textContent;
+                    btn.textContent = '✓ Copied!';
+                    setTimeout(() => {
+                        btn.textContent = originalText;
+                    }, 2000);
+                }
+            } catch (error) {
+                console.error('Failed to copy:', error);
+                alert('Failed to copy to clipboard. Please select and copy manually.');
+            }
+        }
+
         // Handle form submission
         document.getElementById('configForm').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -2134,6 +2197,10 @@
             const securityModal = document.getElementById('securityModal');
             if (event.target === securityModal) {
                 closeSecurityModal();
+            }
+            const debugModal = document.getElementById('debugModal');
+            if (event.target === debugModal) {
+                closeDebugInspector();
             }
             const mapModal = document.getElementById('mapModal');
             if (event.target === mapModal) {

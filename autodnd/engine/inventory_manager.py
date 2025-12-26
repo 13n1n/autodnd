@@ -7,95 +7,21 @@ class InventoryManager:
     """Handles player inventory, bags, and equipment."""
 
     @staticmethod
-    def can_place_item(
-        inventory: PlayerInventory, item: Item, bag_index: int, slot_index: int
-    ) -> bool:
-        """
-        Check if item can be placed in specified bag slot.
-
-        Args:
-            inventory: Player inventory
-            item: Item to place
-            bag_index: Index of bag
-            slot_index: Index of slot within bag
-
-        Returns:
-            True if item can be placed, False otherwise
-        """
-        # Large items can't be placed in bags
-        if ItemTag.LARGE in item.tags:
-            return False
-
-        # Check bag exists
-        if bag_index >= len(inventory.bags):
-            return False
-
-        bag = inventory.bags[bag_index]
-
-        # Check slot exists
-        if slot_index >= bag.size:
-            return False
-
-        # Check slot is empty or can accommodate item
-        if item.slot_size == 2:  # Heavy item needs 2 slots
-            if slot_index >= bag.size - 1:
-                return False  # Not enough space for 2-slot item
-            if bag.items[slot_index] is not None or bag.items[slot_index + 1] is not None:
-                return False  # Slots occupied
-        else:
-            if bag.items[slot_index] is not None:
-                return False  # Slot occupied
-
-        return True
-
-    @staticmethod
     def place_item_in_bag(
-        inventory: PlayerInventory, item: Item, bag_index: int, slot_index: int
+        inventory: PlayerInventory, item: Item
     ) -> PlayerInventory:
-        """
-        Place item in bag slot.
+        import copy
 
-        Args:
-            inventory: Player inventory
-            item: Item to place
-            bag_index: Index of bag
-            slot_index: Index of slot within bag
+        for i, bag in enumerate(inventory.bags):
+            if bag.size - len(bag.items) >= item.slot_size:
+                break
+        else:
+            raise ValueError(f"No available bag slot for item {item.item_id}")
 
-        Returns:
-            New inventory with item placed
-        """
-        if not InventoryManager.can_place_item(inventory, item, bag_index, slot_index):
-            raise ValueError(f"Cannot place item {item.item_id} in bag {bag_index}, slot {slot_index}")
+        new_bags = copy.deepcopy(inventory.bags)
+        new_bags[i].items.append(item)
 
-        # Update item location
-        updated_item = item.model_copy(
-            update={
-                "location": ItemLocation.BAG,
-                "bag_index": bag_index,
-                "slot_index": slot_index,
-            }
-        )
-
-        # Update bag
-        bag = inventory.bags[bag_index]
-        new_items = list(bag.items)
-        new_items[slot_index] = updated_item
-        if item.slot_size == 2:
-            new_items[slot_index + 1] = updated_item  # Heavy items occupy 2 slots
-
-        new_bag = bag.model_copy(update={"items": new_items})
-
-        # Update bags list
-        new_bags = list(inventory.bags)
-        new_bags[bag_index] = new_bag
-
-        # Update all_items list
-        new_all_items = [
-            updated_item if old_item.item_id == item.item_id else old_item
-            for old_item in inventory.all_items
-        ]
-
-        return inventory.model_copy(update={"bags": new_bags, "all_items": new_all_items})
+        return inventory.model_copy(update={"bags": new_bags})
 
     @staticmethod
     def equip_item(inventory: PlayerInventory, item: Item) -> PlayerInventory:

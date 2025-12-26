@@ -1,7 +1,7 @@
 """LangChain tools for game agents."""
 
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
@@ -24,13 +24,13 @@ class RollDiceInput(BaseModel):
 class GetPlayerStatsInput(BaseModel):
     """Input for get player stats tool."""
 
-    player_id: str = Field(description="Player ID to get stats for")
+    player_id: Optional[str] = Field(default=None, description="Player ID to get stats for. If not provided, returns stats for any/default player.")
 
 
 class GetInventoryInput(BaseModel):
     """Input for get inventory tool."""
 
-    player_id: str = Field(description="Player ID to get inventory for")
+    player_id: Optional[str] = Field(default=None, description="Player ID to get inventory for. If not provided, returns inventory for any/default player.")
 
 
 class GetMapStateInput(BaseModel):
@@ -53,23 +53,39 @@ class StoreDataInput(BaseModel):
 
     key: str = Field(description="Key to store the value under")
     value: str = Field(description="Value to store")
-    reason: Optional[str] = Field(default=None, description="Reason for rolling the dice")
+    reason: Optional[str] = Field(default=None, description="Reason for storing this data")
 
 
 class GetDataInput(BaseModel):
     """Input for get data tool."""
 
-    key: str = Field(description="Key to retrieve the value for")
+    key: Optional[str] = Field(default=None, description="Key to retrieve the value for. If not provided, returns a list of all available keys.")
+
+
+class TakeItemInput(BaseModel):
+    """Input for take item tool."""
+
+    item_id: str = Field(description="Item ID to take (must exist in current cell contents or be provided as new item)")
+    item_name: Optional[str] = Field(default=None, description="Item name (required if creating new item)")
+    item_description: Optional[str] = Field(default=None, description="Item description (required if creating new item)")
+    tags: Optional[list[str]] = Field(default=None, description="Item tags (e.g., ['weapon', 'heavy', 'quest', 'potion', 'book/scroll' and etc])")
+    slot_size: int = Field(default=1, ge=1, le=2, description="Slot size (1 for normal, 2 for heavy)")
+    stat_modifiers: Optional[dict[str, int]] = Field(default=None, description="Stat modifiers when equipped (e.g., {'strength': 2} or {'bag_size': 12})")
+    player_id: Optional[str] = Field(default=None, description="Player ID to take item for. If not provided, uses first player.")
+    wear: bool = Field(default=False, description="Whether to equip/wear the item immediately after taking it")
 
 
 def create_roll_dice_tool() -> StructuredTool:
     """Create roll dice tool."""
 
-    def roll_dice(dice_type: int, modifier: int = 0, count: int = 1) -> dict:
+    def roll_dice(dice_type: int, modifier: int = 0, count: int = 1, reason: Optional[str] = None) -> dict:
         """Roll DnD dice with optional modifier and count."""
-        logger.info(f"Tool called: roll_dice(dice_type={dice_type}, modifier={modifier}, count={count})")
+        logger.info(f"Tool called: roll_dice(dice_type={dice_type}, modifier={modifier}, count={count}, reason={reason})")
         result = DiceRoller.roll(dice_type, modifier, count)
-        logger.debug(f"roll_dice result: {result}")
+        if reason:
+            logger.debug(f"roll_dice result: {result} (reason: {reason})")
+        else:
+            logger.debug(f"roll_dice result: {result}")
         return result
 
     return StructuredTool.from_function(
@@ -83,11 +99,11 @@ def create_roll_dice_tool() -> StructuredTool:
 def create_get_player_stats_tool(state_getter) -> StructuredTool:
     """Create get player stats tool."""
 
-    def get_player_stats(player_id: str) -> dict:
+    def get_player_stats(player_id: Optional[str] = None) -> dict:
         """Get player stats from current game state."""
         logger.info(f"Tool called: get_player_stats(player_id={player_id})")
         state: GameState = state_getter()
-        player = next((p for p in state.players if p.player_id == player_id), None)
+        player = next((p for p in state.players if player_id is None or p.player_id == player_id), None)
         if not player:
             logger.warning(f"Player {player_id} not found")
             return {"error": f"Player {player_id} not found"}
@@ -101,6 +117,7 @@ def create_get_player_stats_tool(state_getter) -> StructuredTool:
             "current_stats": player.current_stats.model_dump(),
             "is_alive": player.is_alive,
             "status_conditions": player.status_conditions,
+            "inventory_size": len(player.inventory.all_items),
         }
         logger.debug(f"get_player_stats result for {player_id}: level={player.level}, stats={player.current_stats.model_dump()}")
         return result
@@ -116,11 +133,11 @@ def create_get_player_stats_tool(state_getter) -> StructuredTool:
 def create_get_inventory_tool(state_getter) -> StructuredTool:
     """Create get inventory tool."""
 
-    def get_inventory(player_id: str) -> dict:
+    def get_inventory(player_id: Optional[str] = None) -> dict:
         """Get player inventory from current game state."""
         logger.info(f"Tool called: get_inventory(player_id={player_id})")
         state: GameState = state_getter()
-        player = next((p for p in state.players if p.player_id == player_id), None)
+        player = next((p for p in state.players if player_id is None or p.player_id == player_id), None)
         if not player:
             logger.warning(f"Player {player_id} not found")
             return {"error": f"Player {player_id} not found"}
@@ -143,36 +160,79 @@ def create_get_inventory_tool(state_getter) -> StructuredTool:
 def create_get_map_state_tool(state_getter) -> StructuredTool:
     """Create get map state tool."""
 
+    from autodnd.models.world import HexCoordinate, TerrainType
+
     def get_map_state(coordinate_q: Optional[int] = None, coordinate_r: Optional[int] = None) -> dict:
-        """Get map state from current game state."""
+        """
+        Clean get_map_state:
+        - If no (coordinate_q, coordinate_r), default to player's position
+        - Always returns nearest cities and dungeons in radius 6 of requested position
+        - Always returns player's position
+        """
         logger.info(f"Tool called: get_map_state(coordinate_q={coordinate_q}, coordinate_r={coordinate_r})")
         state: GameState = state_getter()
+        if not state.players or not hasattr(state.players[0], "position"):
+            logger.warning("No players or player position in current state")
+            return {"error": "No player position found"}
 
-        if coordinate_q is not None and coordinate_r is not None:
-            from autodnd.models.world import HexCoordinate
+        player = state.players[0]
+        player_position = {"q": player.position.q, "r": player.position.r}
 
-            coord = HexCoordinate(q=coordinate_q, r=coordinate_r)
-            cell = state.world_map.get_cell(coord)
-            if cell:
-                logger.debug(f"get_map_state: Found cell at ({coordinate_q}, {coordinate_r})")
-                return {"cell": cell.model_dump()}
+        # Substitute missing arguments with player's current position
+        if coordinate_q is None or coordinate_r is None:
+            coordinate_q = player.position.q
+            coordinate_r = player.position.r
+
+        coord = HexCoordinate(q=coordinate_q, r=coordinate_r)
+        cell = state.world_map.get_cell(coord)
+
+        result = {}
+        if cell:
+            result["cell"] = cell.model_dump()
+        else:
             logger.warning(f"Cell at ({coordinate_q}, {coordinate_r}) not found")
-            return {"error": f"Cell at ({coordinate_q}, {coordinate_r}) not found"}
+            result["error"] = f"Cell at ({coordinate_q}, {coordinate_r}) not found"
 
-        # Return overall map info
-        result = {
-            "total_cells": len(state.world_map.cells),
-            "cells": [cell.model_dump() for cell in state.world_map.cells.values()],
-        }
-        logger.debug(f"get_map_state: Returning {result['total_cells']} cells")
+        # Always include player's current position
+        result["player_position"] = player_position
+
+        # Find cities and dungeons in radius 6 of the requested position
+        def hex_distance(a: HexCoordinate, b: HexCoordinate) -> int:
+            # Cube coordinates: (q, r, s)
+            aq, ar, as_ = a.q, a.r, -a.q - a.r
+            bq, br, bs = b.q, b.r, -b.q - b.r
+            return max(abs(aq - bq), abs(ar - br), abs(as_ - bs))
+
+        cities_and_dungeons = []
+        RADIUS = 6
+        for (q, r), c in state.world_map.cells.items():
+            check_coord = HexCoordinate(q=q, r=r)
+            if hex_distance(coord, check_coord) <= RADIUS:
+                if getattr(c, "terrain", None) in [TerrainType.CITY, TerrainType.DUNGEON]:
+                    # For clarity, include coordinates, terrain, and description only
+                    cities_and_dungeons.append({
+                        "q": c.coordinates.q,
+                        "r": c.coordinates.r,
+                        "terrain": c.terrain.value,
+                        "description": c.description,
+                    })
+        result["nearby_cities_and_dungeons"] = cities_and_dungeons
+
+        logger.debug(
+            f"get_map_state: pos=({coordinate_q},{coordinate_r}), "
+            f"cell={'present' if cell else 'none'}, "
+            f"nearby_cities_and_dungeons={len(cities_and_dungeons)}, "
+            f"player_position={player_position}"
+        )
         return result
 
     return StructuredTool.from_function(
         func=get_map_state,
         name="get_map_state",
-        description="Get map state. Provide coordinate_q and coordinate_r for specific cell, or omit for all cells",
+        description="Get map state at a specific coordinates (coordinate_q, coordinate_r). If omitted, defaults to player's position. Always returns the player's current position and all cities and dungeons within 6 hexes of the requested position.",
         args_schema=GetMapStateInput,
     )
+
 
 
 def create_get_npc_info_tool(state_getter) -> StructuredTool:
@@ -226,13 +286,16 @@ def create_get_npc_info_tool(state_getter) -> StructuredTool:
 def create_store_data_tool(state_getter, engine_updater) -> StructuredTool:
     """Create store data tool for key-value storage."""
 
-    def store_data(key: str, value: str) -> dict:
+    def store_data(key: str, value: str, reason: Optional[str] = None) -> dict:
         """Store a key-value pair in persistent storage."""
-        logger.info(f"Tool called: store_data(key={key}, value_length={len(value)})")
+        logger.info(f"Tool called: store_data(key={key}, value_length={len(value)}, reason={reason})")
         state = state_getter()
         engine_updater(key, value)
         result = {"success": True, "key": key, "message": f"Stored value for key '{key}'"}
-        logger.debug(f"store_data: Stored data for key '{key}'")
+        if reason:
+            logger.debug(f"store_data: Stored data for key '{key}' (reason: {reason})")
+        else:
+            logger.debug(f"store_data: Stored data for key '{key}'")
         return result
 
     return StructuredTool.from_function(
@@ -246,10 +309,15 @@ def create_store_data_tool(state_getter, engine_updater) -> StructuredTool:
 def create_get_data_tool(state_getter) -> StructuredTool:
     """Create get data tool for key-value retrieval."""
 
-    def get_data(key: str) -> dict:
-        """Retrieve a value by key from persistent storage."""
+    def get_data(key: Optional[str] = None) -> dict:
+        """Retrieve a value by key from persistent storage. If key is not provided, returns a list of all available keys."""
         logger.info(f"Tool called: get_data(key={key})")
         state = state_getter()
+        if key is None:
+            keys = list[str](state.storage.keys())
+            result = {"success": True, "keys": keys, "count": len(keys)}
+            logger.debug(f"get_data: Returning list of {len(keys)} available keys")
+            return result
         if key in state.storage:
             result = {"success": True, "key": key, "value": state.storage[key]}
             logger.debug(f"get_data: Found data for key '{key}', value_length={len(str(result['value']))}")
@@ -260,7 +328,64 @@ def create_get_data_tool(state_getter) -> StructuredTool:
     return StructuredTool.from_function(
         func=get_data,
         name="get_data",
-        description="Retrieve a value by key from persistent storage. Useful for retrieving hidden objectives, game notes, or other stored data.",
+        description="Retrieve a value by key from persistent storage. If key is not provided, returns a list of all available keys. Useful for retrieving hidden objectives, game notes, or other stored data.",
         args_schema=GetDataInput,
+    )
+
+
+def create_take_item_tool(state_getter, engine_updater) -> StructuredTool:
+    """Create take item tool."""
+
+    def take_item(
+        item_id: str,
+        item_name: Optional[str] = None,
+        item_description: Optional[str] = None,
+        tags: Optional[list[str]] = None,
+        slot_size: int = 1,
+        stat_modifiers: Optional[dict[str, int]] = None,
+        player_id: Optional[str] = None,
+        wear: bool = False,
+    ) -> dict:
+        """Take an item from a location and add it to player inventory."""
+        logger.info(
+            f"Tool called: take_item(item_id={item_id}, player_id={player_id}, wear={wear}"
+        )
+        state: GameState = state_getter()
+        
+        # Get player (same pattern as other tools)
+        player = next((p for p in state.players if player_id is None or p.player_id == player_id), None)
+        if not player:
+            logger.warning(f"Player {player_id} not found")
+            return {"error": f"Player {player_id} not found"}
+
+        # If item not in cell and we don't have item details, return error
+        if (not item_name or not item_description):
+            logger.warning(f"item details not provided")
+            return {"error": f"Provide item_name and item_description to create new item."}
+
+        # Update state through engine_updater
+        result = engine_updater(
+            item_id=item_id,
+            item_name=item_name,
+            item_description=item_description,
+            tags=tags or [],
+            slot_size=slot_size,
+            stat_modifiers=stat_modifiers or {},
+            player_id=player.player_id,
+            wear=wear,
+        )
+        
+        if result.get("error"):
+            logger.warning(f"take_item failed: {result.get('error')}")
+            return result
+        
+        logger.debug(f"take_item result: {result}")
+        return result
+
+    return StructuredTool.from_function(
+        func=take_item,
+        name="take_item",
+        description="Take an item from a location (cell) and add it to player inventory. Stores items to first available slot in bag. If taking a bag, adds it if player has < 7 bags, or replaces first bag with lesser storage capacity. Can optionally equip the item if wear=true.",
+        args_schema=TakeItemInput,
     )
 

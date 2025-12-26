@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Optional
 
 import os
+import shutil
 import logging
 from flask import Flask, jsonify, request, send_from_directory
 from werkzeug.exceptions import HTTPException
@@ -18,6 +19,7 @@ from autodnd.agents.tools import (
     create_get_player_stats_tool,
     create_roll_dice_tool,
     create_store_data_tool,
+    create_take_item_tool,
 )
 from ..api.llm_config import LLMConfig, LLMConfigManager
 from langchain.chat_models import BaseChatModel
@@ -48,7 +50,7 @@ from ..models.world import HexCoordinate, HexMap, TimeState
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 STATIC_DIR = os.path.join(BASE_DIR, "static")
 
-logging.basicConfig(level=logging.INFO, format='[%(name)-19s - %(levelname)5s] %(message)s')
+logging.basicConfig(level=logging.DEBUG, format='[%(name)-19s - %(levelname)5s] %(message)s')
 
 app = Flask("flask.autodnd", static_folder=STATIC_DIR, static_url_path="/static")
 
@@ -175,17 +177,14 @@ def _setup_game_master(engine: GameEngine, custom_prompt: Optional[str] = None, 
     def state_getter():
         return engine.state
 
-    def engine_updater(key: str, value: str):
-        """Update storage in engine state."""
-        engine.update_storage(key, value)
-
     tools = [
         create_roll_dice_tool(),
         create_get_player_stats_tool(state_getter),
         create_get_inventory_tool(state_getter),
         create_get_map_state_tool(state_getter),
-        create_store_data_tool(state_getter, engine_updater),
+        create_store_data_tool(state_getter, engine.update_storage),
         create_get_data_tool(state_getter),
+        create_take_item_tool(state_getter, engine.take_item),
     ]
 
     # Use provided LLM or fall back to global config
@@ -415,6 +414,32 @@ def create_game():
         return jsonify({"error": "Failed to create game", "message": str(e)}), 500
 
 
+@app.route("/api/games/<game_id>", methods=["DELETE"])
+def delete_game(game_id: str):
+    """Delete a game and all its state files."""
+    # Check if game exists in memory
+    if game_id not in _games:
+        return jsonify({"error": "Game not found"}), 404
+
+    try:
+        # Remove game from memory
+        del _games[game_id]
+        app.logger.info(f"Removed game {game_id} from memory")
+
+        # Delete game directory and all state files
+        game_dir = _state_dumper._get_game_directory(game_id)
+        if game_dir.exists():
+            shutil.rmtree(game_dir)
+            app.logger.info(f"Deleted game directory and all state files for {game_id}")
+        else:
+            app.logger.warning(f"Game directory not found: {game_dir}")
+
+        return jsonify({"success": True, "message": f"Game {game_id} and all its state files have been deleted"})
+    except Exception as e:
+        app.logger.error(f"Error deleting game {game_id}: {e}", exc_info=True)
+        return jsonify({"error": "Failed to delete game", "message": str(e)}), 500
+
+
 @app.route("/api/game/start", methods=["POST"])
 def start_game():
     """Initialize new game (deprecated, use /api/games POST instead)."""
@@ -586,7 +611,7 @@ def list_snapshots(game_id: str):
     engine = _get_game_engine(game_id)
     if not engine:
         return jsonify({"error": "Game not found"}), 404
-    
+
     snapshots = engine.history.list_snapshots()
     return jsonify(
         {

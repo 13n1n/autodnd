@@ -1,12 +1,13 @@
 """Game Master Agent using LangChain."""
 
 import uuid
+import logging
 from datetime import datetime
 from typing import TYPE_CHECKING, Callable, Optional
 
 from langchain.agents import create_agent
 from langchain.chat_models import BaseChatModel
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.tools import StructuredTool
 from langchain_openai import ChatOpenAI
 from langchain_ollama import ChatOllama
@@ -64,31 +65,58 @@ class GameMasterAgent:
         """Build the agent using create_agent."""
 
         system_prompt = f"""
-You are a Dungeon Master for a D&D game. Your role is to:
-1. Interpret player actions and describe what happens
-2. Create engaging narratives and storylines
-3. Manage NPCs and world events
-4. Make fair rulings based on D&D rules
-5. Keep the game interesting and fun
+You are a Dungeon Master for a D&D game. Follow this TODO list for EVERY player action:
 
-You have access to tools to:
-- Roll dice for game mechanics
-- Get player stats and inventory
-- Get map information
-- Store and retrieve key-value data (use this for hidden objectives, game notes, etc.)
+=== MANDATORY TODO LIST (Follow in order) ===
 
-When responding to player actions:
-- Be creative and descriptive
-- Follow D&D-like rules and mechanics
-- Keep responses concise but engaging
-- Use tools when needed for dice rolls or checking game state
-- IMPORTANT: Do NOT reveal hidden objectives directly to the player. Store them using the store_data tool and only reveal them through gameplay, clues, or when the player discovers them naturally. Hidden objectives should be discovered through exploration, investigation, or story progression, not stated explicitly.
+[ ] STEP 1: ALWAYS check player's current position FIRST
+    → Use tool: get_map_state() (call without parameters to get all map info)
+    → Extract player_position from the response: {{"q": X, "r": Y}}
+    → Remember: Player is at hex coordinates (q, r) - this is their ACTUAL location
 
-Always respond in character as the Dungeon Master.
+[ ] STEP 2: Get player context (if needed for the action)
+    → Use tool: get_player_stats(player_id) to check stats, level, health
+    → Use tool: get_inventory(player_id) to check items and equipment
+    → Use tool: get_map_state(coordinate_q=X, coordinate_r=Y) to check specific cell details
 
-Be polite and friendly. Also, here some requests from player:
+[ ] STEP 3: Generate response that RESPECTS player position
+    → Your description MUST be consistent with player being at hex (q, r)
+    → If describing the location, describe what's at hex (q, r), not somewhere else
+    → If generating world content, ensure it matches the terrain/contents at hex (q, r)
+    → NEVER assume player is at a different location than their actual position
 
-{self._custom_prompt}""".strip()
+[ ] STEP 4: Use other tools as needed
+    → Use roll_dice() for game mechanics when appropriate
+    → Use store_data() for hidden objectives, game notes (don't reveal hidden objectives directly)
+    → Use get_data() to retrieve stored information
+
+[ ] STEP 5: Respond as Dungeon Master
+    → Be creative, descriptive, and engaging
+    → Follow D&D-like rules and mechanics
+    → Keep responses concise but immersive
+    → Always respond in character as the Dungeon Master
+
+=== AVAILABLE TOOLS ===
+- get_map_state() - MANDATORY: Use this FIRST to get player position (player_position field)
+- get_player_stats(player_id) - Get player stats, level, health, status
+- get_inventory(player_id) - Get player inventory and equipment
+- roll_dice(dice_type, modifier, count) - Roll DnD dice
+- store_data(key, value) - Store hidden objectives, game notes
+- get_data(key) - Retrieve stored data
+- take_item(item_id, ...) - Take an item from a location and add to player inventory.
+                            Stores to first available bag slot. Can optionally equip without storing to bag with wear=true.
+                            Respect tags, so quest items should be taken with `quest` tag.
+
+=== CRITICAL RULES ===
+1. NEVER generate content without first checking player position via get_map_state()
+2. ALWAYS respect the player_position from get_map_state() response
+3. Descriptions must match the actual hex cell where player is located
+4. Do NOT reveal hidden objectives directly - use store_data() and reveal through gameplay
+
+=== PLAYER PREFERENCES ===
+{self._custom_prompt if self._custom_prompt else "None specified"}
+
+Remember: Check player position FIRST, then generate content that matches that location!""".strip()
 
         self._agent = create_agent(
             model=self._llm,
@@ -172,9 +200,12 @@ Be polite and friendly. Also, here some requests from player:
         Returns:
             Tuple of (final_response_text, list_of_tool_messages)
         """
+        import pprint
         tool_messages: list[Message] = []
         sequence = sequence_start
         final_response = ""
+
+        logging.debug("Extracting tool calls from result: %s", pprint.pformat(result))
 
         if result.get("messages"):
             for msg in result["messages"]:
@@ -217,16 +248,9 @@ Be polite and friendly. Also, here some requests from player:
                         sequence += 1
 
                 # Check if this is a tool result message (ToolMessage)
-                tool_name_attr = None
-                tool_content = None
-                if msg_obj:
+                if isinstance(msg, ToolMessage):
                     tool_name_attr = getattr(msg_obj, "name", None)
                     tool_content = getattr(msg_obj, "content", None)
-                elif msg_dict:
-                    tool_name_attr = msg_dict.get("name")
-                    tool_content = msg_dict.get("content")
-
-                if tool_name_attr and tool_content:
                     # This is a tool result
                     content_str = str(tool_content)
                     tool_result_msg = Message(
@@ -243,24 +267,10 @@ Be polite and friendly. Also, here some requests from player:
                     tool_messages.append(tool_result_msg)
                     sequence += 1
 
-                # Extract final response from AIMessage without tool_calls (overwrite to get the last one)
-                # Skip if this message has tool_calls or is a ToolMessage (those are handled above)
-                if not tool_calls and not tool_name_attr:
-                    if msg_obj and hasattr(msg_obj, "content"):
-                        content = msg_obj.content
-                        if isinstance(content, str) and content:
-                            final_response = content
-                        elif isinstance(content, list):
-                            # Handle content blocks
-                            final_response = " ".join(str(item) for item in content)
-                    elif msg_dict and not msg_dict.get("tool_calls") and not msg_dict.get("name"):
-                        content = msg_dict.get("content", "")
-                        if isinstance(content, str) and content:
-                            final_response = content
-
-        # Fallback: try to get output directly
-        if not final_response:
-            final_response = result.get("output", "")
+        final_response = [
+            msg.content for msg in result.get("messages", [])
+            if isinstance(msg, AIMessage)
+        ][-1]
 
         return final_response, tool_messages
 
@@ -285,44 +295,59 @@ Be polite and friendly. Also, here some requests from player:
         Returns:
             Tuple of (intro_message_text, list_of_tool_messages)
         """
-        intro_prompt = """You are a Dungeon Master starting a new D&D adventure. Generate an engaging introduction message that:
+        
+        intro_prompt = f"""As the Dungeon Master, complete this TODO list to initialize the game:
 
-1. **Game Setting**: Describe the world, location, and atmosphere where the adventure begins. Be vivid and immersive.
+[ ] PROMISE 1: Generate an engaging title
+    → Use the first line of your final response (after all tool calls) as the game title
+    → Make it dramatic, memorable, and fitting for the adventure
+    → Format: Start your response with the title as the first line
 
-2. **Initial Conflict**: Present an immediate situation, problem, or conflict that needs to be addressed. This could be:
-   - A mystery to solve
-   - A threat to overcome
-   - A quest to complete
-   - A dilemma to resolve
+[ ] PROMISE 2: Plot the story line with hidden objectives
+    → Create a main story arc with 3-5 key plot points
+    → Design 2-3 hidden objectives that players must discover through gameplay
+    → Use store_data() to save hidden objectives (key: "hidden_objectives")
+    → Use store_data() to save story arc (key: "story_arc")
+    → Ensure objectives are discoverable but not immediately obvious
 
-3. **Objectives**: Include objectives for the player, but make them intriguing:
-   - Some objectives should be clear and immediate
-   - Some objectives may be hidden or unclear, requiring investigation
-   - Objectives should feel natural and motivate exploration
-   - Don't reveal everything upfront - leave room for discovery
-   - IMPORTANT: Use the store_data tool to store any hidden objectives. Do NOT reveal hidden objectives directly in your introduction - only hint at them or leave them for discovery through gameplay.
+[ ] PROMISE 3: Establish the initial scene
+    → Check player position using get_map_state()
+    → Describe the starting location vividly and immersively
+    → Set the mood and atmosphere
+    → Introduce immediate surroundings and any visible elements
 
-4. **Starting Context**: Describe where the player character is, what they know, and what they can see or sense around them.
+[ ] PROMISE 4: Create engaging introduction
+    → Write a compelling opening narrative
+    → Introduce the world setting and context
+    → Hint at the adventure ahead without revealing hidden objectives
+    → Make it feel like the beginning of an epic story
 
-Make the introduction engaging, mysterious, and compelling. Set up a world that invites exploration and investigation. The tone should match the difficulty level and any custom preferences provided.
+[ ] PROMISE 5: Set up game mechanics context
+    → Ensure player stats are appropriate for the difficulty level
+    → Consider any starting items or equipment that fit the theme
+    → Establish any special rules or mechanics for this adventure
 
-Write the introduction as if you are narrating directly to the player character."""
+[ ] PROMISE 6: Generate and list a set of starting quest items
+    → Use store_data() to save quest items (key: "quest_items")
+    → Then taking items withtake_item() should be with `quest` tag
 
-        if difficulty:
-            intro_prompt += f"\n\nDifficulty Level: {difficulty}"
+Game theme: {custom_prompt or "general D&D story"}
+Difficulty: {difficulty}
 
-        if custom_prompt:
-            intro_prompt += f"\n\nPlayer Preferences:\n{custom_prompt}"
+Remember: Your first line will become the game title. Make it count!"""
 
         messages = [{"role": "user", "content": intro_prompt}]
 
-        result = self._agent.invoke({"messages": messages})
+        tool_messages: list[Message] = []
+        intro_message = None
+        while not intro_message:
+            pleaseure = [] if intro_message is None else ["Please, complete the intro message"]
 
-        # Extract tool calls and final response
-        intro_message, tool_messages = self._extract_tool_calls_from_result(result)
+            result = self._agent.invoke({"messages": messages + tool_messages + pleaseure})
 
-        if not intro_message:
-            raise Exception("Generation intro failed!")
+            # Extract tool calls and final response
+            intro_message, new_tool_messages = self._extract_tool_calls_from_result(result)
+            tool_messages.extend(new_tool_messages)
 
         return intro_message, tool_messages
 
