@@ -249,10 +249,11 @@ Remember: Check player position FIRST, then generate content that matches that l
 
                 # Check if this is a tool result message (ToolMessage)
                 if isinstance(msg, ToolMessage):
-                    tool_name_attr = getattr(msg_obj, "name", None)
-                    tool_content = getattr(msg_obj, "content", None)
+                    tool_name_attr = getattr(msg, "name", None)
+                    tool_content = getattr(msg, "content", None)
+                    tool_call_id_attr = getattr(msg, "tool_call_id", None)
                     # This is a tool result
-                    content_str = str(tool_content)
+                    content_str = str(tool_content) if tool_content else ""
                     tool_result_msg = Message(
                         message_id=str(uuid.uuid4()),
                         timestamp=datetime.now(),
@@ -262,7 +263,7 @@ Remember: Check player position FIRST, then generate content that matches that l
                         content=content_str,
                         message_type=MessageType.TOOL_OUTPUT,
                         tool_name=tool_name_attr,
-                        metadata={"tool_result": True},
+                        metadata={"tool_result": True, "tool_call_id": tool_call_id_attr or ""},
                     )
                     tool_messages.append(tool_result_msg)
                     sequence += 1
@@ -329,7 +330,7 @@ Remember: Check player position FIRST, then generate content that matches that l
 
 [ ] PROMISE 6: Generate and list a set of starting quest items
     → Use store_data() to save quest items (key: "quest_items")
-    → Then taking items withtake_item() should be with `quest` tag
+    → Then taking items with take_item() should be with `quest` tag
 
 Game theme: {custom_prompt or "general D&D story"}
 Difficulty: {difficulty}
@@ -341,9 +342,33 @@ Remember: Your first line will become the game title. Make it count!"""
         tool_messages: list[Message] = []
         intro_message = None
         while not intro_message:
-            pleaseure = [] if intro_message is None else ["Please, complete the intro message"]
+            langchain_tool_messages = []
+            # Convert tool_messages to LangChain format
+            for msg in tool_messages:
+                if msg.message_type == MessageType.TOOL_OUTPUT:
+                    # Check if this is a tool result (has tool_result in metadata)
+                    if msg.metadata.get("tool_result"):
+                        # This is a tool result - convert back to ToolMessage
+                        tool_call_id = msg.metadata.get("tool_call_id", "")
+                        tool_name = msg.tool_name or msg.source_id
+                        if tool_call_id:  # Only add if we have a valid tool_call_id
+                            langchain_tool_messages.append(
+                                ToolMessage(
+                                    content=msg.content,
+                                    tool_call_id=tool_call_id,
+                                    name=tool_name,
+                                )
+                            )
+                    # Tool calls are already embedded in AIMessage, so we don't need to convert them
+            
+            # Convert pleaseure to LangChain format
+            pleaseure_messages = []
+            if intro_message is None:
+                pleaseure_messages = []
+            else:
+                pleaseure_messages = [HumanMessage(content="Please, complete the intro message")]
 
-            result = self._agent.invoke({"messages": messages + tool_messages + pleaseure})
+            result = self._agent.invoke({"messages": messages + langchain_tool_messages + pleaseure_messages})
 
             # Extract tool calls and final response
             intro_message, new_tool_messages = self._extract_tool_calls_from_result(result)

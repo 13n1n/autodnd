@@ -559,7 +559,7 @@ class GameEngine:
             else:
                 # Place item in bag
                 try:
-                    updated_inventory = InventoryManager.place_item_in_bag(inventory, new_item, bag_index, slot_index)
+                    updated_inventory = InventoryManager.place_item_in_bag(inventory, new_item)
                 except ValueError as e:
                     return {"error": f"Cannot place item in bag: {str(e)}", "exception": str(e)}
 
