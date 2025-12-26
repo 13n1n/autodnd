@@ -629,6 +629,69 @@ def list_snapshots(game_id: str):
     )
 
 
+@app.route("/api/games/<game_id>/recover", methods=["POST"])
+def recover_to_message(game_id: str):
+    """Recover game state to a specific message, removing all states after it."""
+    if not request.is_json:
+        return jsonify({"error": "Content-Type must be application/json"}), 400
+
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+
+    sequence_number = data.get("sequence_number")
+    if sequence_number is None:
+        return jsonify({"error": "sequence_number is required"}), 400
+
+    # Check if game exists
+    if game_id not in _games:
+        return jsonify({"error": "Game not found"}), 404
+
+    try:
+        # Find the state version that contains this message
+        target_version = _state_dumper.find_state_with_message(game_id, sequence_number)
+        if target_version is None:
+            return jsonify({"error": f"Message with sequence_number {sequence_number} not found in any saved state"}), 404
+
+        app.logger.info(f"Recovering game {game_id} to state version {target_version} (message sequence {sequence_number})")
+
+        # Load the target state from disk
+        target_state = _state_dumper.load_state(game_id, target_version)
+        if not target_state:
+            return jsonify({"error": f"Failed to load state version {target_version}"}), 500
+
+        # Verify the message exists in this state
+        message_found = False
+        for msg in target_state.message_history.messages:
+            if msg.sequence_number == sequence_number:
+                message_found = True
+                break
+
+        if not message_found:
+            return jsonify({"error": f"Message with sequence_number {sequence_number} not found in state version {target_version}"}), 404
+
+        # Reload the game from the target state
+        engine, game_master = _load_game_from_state(target_state)
+        _games[game_id] = (engine, game_master)
+
+        # Delete all state files with version numbers greater than target_version
+        deleted_count = _state_dumper.delete_versions_after(game_id, target_version)
+        app.logger.info(f"Deleted {deleted_count} state file(s) after version {target_version}")
+
+        # Dump the recovered state (this will overwrite/create v{target_version}.json if needed)
+        _dump_game_state(engine.state)
+
+        return jsonify({
+            "success": True,
+            "state": _serialize_state_for_api(engine.state),
+            "recovered_to_version": target_version,
+            "deleted_files": deleted_count,
+        })
+    except Exception as e:
+        app.logger.error(f"Error recovering game {game_id} to message {sequence_number}: {e}", exc_info=True)
+        return jsonify({"error": "Failed to recover game state", "message": str(e)}), 500
+
+
 @app.route("/api/config/llm", methods=["GET"])
 def get_llm_config():
     """Get current LLM configuration."""

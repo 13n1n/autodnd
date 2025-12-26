@@ -1313,6 +1313,25 @@
                             // Fallback to plain text if marked.js not loaded
                             content.textContent = msg.content;
                         }
+                        
+                        // Add recover link for master messages
+                        const recoverLink = document.createElement('a');
+                        recoverLink.href = '#';
+                        recoverLink.textContent = '↩️ Recover to this point';
+                        recoverLink.style.cssText = 'display: inline-block; margin-top: 0.75rem; padding: 0.4rem 0.8rem; background: rgba(74, 144, 226, 0.2); border: 1px solid rgba(74, 144, 226, 0.4); border-radius: 4px; color: #4a90e2; text-decoration: none; font-size: 0.85em; cursor: pointer; font-weight: 500;';
+                        recoverLink.onmouseover = function() { 
+                            this.style.background = 'rgba(74, 144, 226, 0.3)';
+                            this.style.borderColor = 'rgba(74, 144, 226, 0.6)';
+                        };
+                        recoverLink.onmouseout = function() { 
+                            this.style.background = 'rgba(74, 144, 226, 0.2)';
+                            this.style.borderColor = 'rgba(74, 144, 226, 0.4)';
+                        };
+                        recoverLink.onclick = function(e) {
+                            e.preventDefault();
+                            recoverToMessage(msg.sequence_number);
+                        };
+                        content.appendChild(recoverLink);
                     } else {
                         // Plain text for non-master messages
                         content.textContent = msg.content;
@@ -2318,6 +2337,56 @@
             const mapModal = document.getElementById('mapModal');
             if (event.target === mapModal) {
                 closeFullScreenMap();
+            }
+        }
+
+        // Recover to a specific message
+        async function recoverToMessage(sequenceNumber) {
+            if (!confirm(`Are you sure you want to recover to message sequence ${sequenceNumber}? This will remove all messages and state changes after this point.`)) {
+                return;
+            }
+            
+            const input = document.getElementById('actionInput');
+            const btn = document.getElementById('submitBtn');
+            
+            input.disabled = true;
+            btn.disabled = true;
+            document.body.classList.add('loading');
+            clearError();
+            
+            try {
+                const response = await fetch(`${API_BASE}/games/${gameId}/recover`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        sequence_number: sequenceNumber,
+                    }),
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentState = data.state;
+                    renderMessages(currentState.message_history.messages);
+                    updateGameStatus(currentState);
+                    // Update full-screen map if it's open
+                    const mapModal = document.getElementById('mapModal');
+                    if (mapModal && mapModal.classList.contains('show')) {
+                        renderFullScreenMap(currentState);
+                    }
+                    alert('Game state recovered successfully!');
+                } else {
+                    showError(`Error: ${data.error || 'Unknown error'}`);
+                }
+            } catch (error) {
+                console.error('Error recovering state:', error);
+                showError(`Error recovering state: ${error.message}`);
+            } finally {
+                input.disabled = false;
+                btn.disabled = false;
+                document.body.classList.remove('loading');
             }
         }
 

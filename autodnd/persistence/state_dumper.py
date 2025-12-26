@@ -219,3 +219,100 @@ class StateDumper:
 
         return games
 
+    def list_state_versions(self, game_id: str) -> list[int]:
+        """
+        List all state versions for a game.
+
+        Args:
+            game_id: Game ID to list versions for
+
+        Returns:
+            List of version numbers (sorted)
+        """
+        game_dir = self._get_game_directory(game_id)
+        if not game_dir.exists():
+            return []
+
+        pattern = re.compile(r"^v(\d+)\.json$")
+        versions = []
+
+        try:
+            for file_path in game_dir.iterdir():
+                if not file_path.is_file():
+                    continue
+                
+                match = pattern.match(file_path.name)
+                if match:
+                    versions.append(int(match.group(1)))
+        except Exception as e:
+            logger.error(f"Error listing state versions for {game_id}: {e}", exc_info=True)
+            return []
+
+        return sorted(versions)
+
+    def find_state_with_message(self, game_id: str, sequence_number: int) -> Optional[int]:
+        """
+        Find the state version that contains a message with the given sequence_number.
+
+        Args:
+            game_id: Game ID to search
+            sequence_number: Message sequence number to find
+
+        Returns:
+            State version number if found, None otherwise
+        """
+        versions = self.list_state_versions(game_id)
+        
+        # Search from newest to oldest to find the first state that contains the message
+        for version in versions:
+            state = self.load_state(game_id, version)
+            if state and state.message_history and state.message_history.messages:
+                # Check if any message has this sequence_number
+                for msg in state.message_history.messages:
+                    if msg.sequence_number == sequence_number:
+                        return version
+                # If we've passed the sequence number (all messages have higher sequence numbers),
+                # we need to check older versions
+                max_seq = max(msg.sequence_number for msg in state.message_history.messages)
+                if max_seq < sequence_number:
+                    # This state doesn't have the message yet, but we're searching backwards
+                    # so we should continue
+                    continue
+        
+        return None
+
+    def delete_versions_after(self, game_id: str, version: int) -> int:
+        """
+        Delete all state files with version numbers greater than the specified version.
+
+        Args:
+            game_id: Game ID
+            version: Keep this version and all earlier versions, delete all later versions
+
+        Returns:
+            Number of files deleted
+        """
+        game_dir = self._get_game_directory(game_id)
+        if not game_dir.exists():
+            return 0
+
+        pattern = re.compile(r"^v(\d+)\.json$")
+        deleted_count = 0
+
+        try:
+            for file_path in game_dir.iterdir():
+                if not file_path.is_file():
+                    continue
+                
+                match = pattern.match(file_path.name)
+                if match:
+                    file_version = int(match.group(1))
+                    if file_version > version:
+                        file_path.unlink()
+                        deleted_count += 1
+                        logger.info(f"Deleted state file {file_path.name} (version {file_version} > {version})")
+        except Exception as e:
+            logger.error(f"Error deleting state files for {game_id}: {e}", exc_info=True)
+
+        return deleted_count
+

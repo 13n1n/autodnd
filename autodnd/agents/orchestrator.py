@@ -80,15 +80,14 @@ class AgentOrchestrator:
                     "content": msg.content,
                     "message_type": msg.message_type.value,
                 }
-                for msg in state.message_history.messages[-10:]
-            ]
+                for msg in state.message_history.messages
+                if msg.message_type not in [MessageType.TOOL_OUTPUT, MessageType.TOOL_CALL]
+            ][-10:]
 
             # Step 3: Call Game Master (with retry logic) and capture tool outputs
             master_response, tool_outputs = self._call_game_master_with_tools(
                 action_text, recent_messages, len(state.message_history.messages)
             )
-
-            logging.warning("HERE ARE TOOLS OUTPUTS: %s", tool_outputs)
 
             # Step 4: Log tool outputs first (if any)
             for tool_output in tool_outputs:
