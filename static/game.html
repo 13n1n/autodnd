@@ -1,0 +1,2402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoDnD - Game</title>
+    <!-- Marked.js for markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #1e1e2e 0%, #2d2d44 100%);
+            color: #e0e0e0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 1rem 2rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+            color: #fff;
+        }
+
+        .header a {
+            color: #e0e0e0;
+            text-decoration: none;
+            margin-right: 1rem;
+        }
+
+        .header a:hover {
+            color: #fff;
+        }
+
+        .header button {
+            background: #4a90e2;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+
+        .header button:hover {
+            background: #357abd;
+        }
+
+        .main-content {
+            flex: 1;
+            width: 100%;
+            display: flex;
+            overflow: hidden;
+            gap: 1rem;
+            padding: 1rem;
+        }
+
+        .chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            width: 100%;
+        }
+
+        .game-status-panel {
+            width: 350px;
+            min-width: 300px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            padding: 1rem;
+            overflow-y: auto;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .game-status-panel h3 {
+            color: #fff;
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 0.5rem;
+        }
+
+        .status-section {
+            margin-bottom: 1.5rem;
+        }
+
+        .status-section-title {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Hex Map Display */
+        .hex-map-container {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .hex-map-grid {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.2rem;
+        }
+
+        .hex-map-row {
+            display: flex;
+            gap: 0.1rem;
+        }
+
+        .hex-cell {
+            width: 30px;
+            height: 26px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .hex-cell.discovered {
+            background: rgba(100, 150, 200, 0.2);
+        }
+
+        .hex-cell.semi-discovered {
+            background: rgba(100, 150, 200, 0.1);
+            opacity: 0.6;
+        }
+
+        .hex-cell.current {
+            background: rgba(74, 144, 226, 0.4);
+            border: 2px solid #4a90e2;
+            font-weight: bold;
+        }
+
+        .hex-cell.neighbor {
+            border: 1px dashed rgba(107, 255, 107, 0.5);
+        }
+
+        .hex-cell.neighbor:hover {
+            background: rgba(107, 255, 107, 0.2);
+            border-color: rgba(107, 255, 107, 0.8);
+        }
+
+        .hex-cell:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .hex-coords {
+            font-size: 0.6rem;
+            color: rgba(255, 255, 255, 0.6);
+            margin-top: 0.25rem;
+            text-align: center;
+        }
+
+        /* Stats Panel */
+        .stats-panel {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+            padding: 1rem;
+        }
+
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .stat-item:last-child {
+            border-bottom: none;
+        }
+
+        .stat-name {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.9rem;
+        }
+
+        .stat-values {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 0.2rem;
+        }
+
+        .stat-base {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 0.8rem;
+        }
+
+        .stat-current {
+            color: #fff;
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+
+        .stat-modifier {
+            font-size: 0.75rem;
+            margin-left: 0.25rem;
+        }
+
+        .stat-modifier.positive {
+            color: #6bff6b;
+        }
+
+        .stat-modifier.negative {
+            color: #ff6b6b;
+        }
+
+        /* Action Status */
+        .action-status {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+            padding: 1rem;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+        }
+
+        .status-indicator.idle {
+            background: #6bff6b;
+        }
+
+        .status-indicator.resting {
+            background: #ffa500;
+        }
+
+        .status-indicator.combat {
+            background: #ff6b6b;
+        }
+
+        .status-indicator.exploring {
+            background: #4a90e2;
+        }
+
+        .time-display {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+        }
+
+        /* Player Info */
+        .player-info {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+            padding: 1rem;
+        }
+
+        .player-name {
+            color: #fff;
+            font-weight: 600;
+            font-size: 1rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .player-level {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.85rem;
+        }
+
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            scroll-behavior: smooth;
+        }
+
+        .messages::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .messages::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .messages::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+        }
+
+        .message {
+            padding: 1rem;
+            border-radius: 8px;
+            max-width: 80%;
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.player {
+            background: rgba(74, 144, 226, 0.2);
+            border-left: 3px solid #4a90e2;
+            align-self: flex-end;
+        }
+
+        .message.master {
+            background: rgba(200, 180, 100, 0.2);
+            border-left: 3px solid #c8b464;
+            font-size: 1.05em;
+            line-height: 1.6;
+            align-self: flex-start;
+        }
+
+        .message.npc {
+            background: rgba(100, 150, 200, 0.15);
+            border-left: 3px solid #6496c8;
+            align-self: flex-start;
+            font-style: italic;
+        }
+
+        .message.npc::before {
+            content: '"';
+            font-size: 1.5em;
+            color: rgba(255, 255, 255, 0.5);
+            margin-right: 0.25rem;
+        }
+
+        .message.npc::after {
+            content: '"';
+            font-size: 1.5em;
+            color: rgba(255, 255, 255, 0.5);
+            margin-left: 0.25rem;
+        }
+
+        .message.tool {
+            background: rgba(155, 89, 182, 0.15);
+            border-left: 3px solid #9b59b6;
+            align-self: flex-start;
+            font-size: 0.75em;
+        }
+        
+        .tool-spoiler-toggle {
+            background: rgba(155, 89, 182, 0.2);
+            border: 1px solid rgba(155, 89, 182, 0.4);
+            color: #d8b3e8;
+            padding: 0.4rem 0.8rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85em;
+            width: 100%;
+            text-align: left;
+            margin-top: 0.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .tool-spoiler-toggle:hover {
+            background: rgba(155, 89, 182, 0.3);
+            border-color: rgba(155, 89, 182, 0.6);
+        }
+        
+        .tool-spoiler-content {
+            display: none;
+            margin-top: 0.5rem;
+            padding: 0.5rem;
+            background: rgba(155, 89, 182, 0.1);
+            border-radius: 4px;
+        }
+        
+        .tool-spoiler-content.show {
+            display: block;
+        }
+
+        .message.system {
+            background: rgba(150, 150, 150, 0.1);
+            border-left: 3px solid #969696;
+            align-self: center;
+            font-size: 0.85em;
+            font-style: italic;
+        }
+
+        .message-header {
+            font-size: 0.85em;
+            opacity: 0.7;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+
+        .message-content {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        /* Markdown styling for master messages */
+        .message.master .message-content {
+            white-space: normal; /* Override pre-wrap for markdown */
+        }
+        .message.master .message-content h1,
+        .message.master .message-content h2,
+        .message.master .message-content h3,
+        .message.master .message-content h4,
+        .message.master .message-content h5,
+        .message.master .message-content h6 {
+            color: #fff;
+            margin-top: 1rem;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+        .message.master .message-content h1 { font-size: 1.5rem; }
+        .message.master .message-content h2 { font-size: 1.3rem; }
+        .message.master .message-content h3 { font-size: 1.1rem; }
+        .message.master .message-content h4 { font-size: 1rem; }
+
+        .message.master .message-content p {
+            margin-bottom: 0.75rem;
+        }
+
+        .message.master .message-content ul,
+        .message.master .message-content ol {
+            margin-left: 1.5rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .message.master .message-content li {
+            margin-bottom: 0.25rem;
+        }
+
+        .message.master .message-content code {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 0.2rem 0.4rem;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+
+        .message.master .message-content pre {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 0.75rem;
+            border-radius: 4px;
+            overflow-x: auto;
+            margin-bottom: 0.75rem;
+        }
+
+        .message.master .message-content pre code {
+            background: none;
+            padding: 0;
+        }
+
+        .message.master .message-content blockquote {
+            border-left: 3px solid rgba(255, 255, 255, 0.3);
+            padding-left: 1rem;
+            margin-left: 0;
+            margin-bottom: 0.75rem;
+            color: rgba(255, 255, 255, 0.8);
+            font-style: italic;
+        }
+
+        .message.master .message-content strong {
+            color: #fff;
+            font-weight: 600;
+        }
+
+        .message.master .message-content em {
+            font-style: italic;
+        }
+
+        .message.master .message-content a {
+            color: #4a90e2;
+            text-decoration: underline;
+        }
+
+        .message.master .message-content a:hover {
+            color: #357abd;
+        }
+
+        .message.master .message-content hr {
+            border: none;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+            margin: 1rem 0;
+        }
+
+        .details-toggle {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: #e0e0e0;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8em;
+            margin-top: 0.5rem;
+        }
+
+        .details-toggle:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .message-details {
+            margin-top: 0.5rem;
+            padding: 0.5rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+            font-size: 0.85em;
+            display: none;
+        }
+
+        .message-details.show {
+            display: block;
+        }
+
+        .input-area {
+            padding: 1rem;
+            background: rgba(0, 0, 0, 0.3);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            gap: 1rem;
+        }
+
+        .input-area input {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            padding: 0.75rem;
+            color: #e0e0e0;
+            font-size: 1rem;
+        }
+
+        .input-area input:focus {
+            outline: none;
+            border-color: #4a90e2;
+        }
+
+        .input-area button {
+            background: #4a90e2;
+            color: white;
+            border: none;
+            padding: 0.75rem 2rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+        }
+
+        .input-area button:hover:not(:disabled) {
+            background: #357abd;
+        }
+
+        .input-area button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            animation: fadeIn 0.2s;
+        }
+
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: #2d2d44;
+            border-radius: 8px;
+            padding: 2rem;
+            max-width: 600px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-header h2 {
+            color: #fff;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: #e0e0e0;
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+        }
+
+        .modal-close:hover {
+            color: #fff;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #e0e0e0;
+            font-weight: 500;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 0.75rem;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            color: #e0e0e0;
+            font-size: 1rem;
+            font-family: inherit;
+        }
+
+        .form-group textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #4a90e2;
+        }
+
+        .spoiler-toggle {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: #e0e0e0;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9em;
+            width: 100%;
+            text-align: left;
+            margin-top: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .spoiler-toggle:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .spoiler-content {
+            display: none;
+            margin-top: 1rem;
+        }
+
+        .spoiler-content.show {
+            display: block;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .modal-actions button {
+            flex: 1;
+            padding: 0.75rem;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+        }
+
+        .btn-primary {
+            background: #4a90e2;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #357abd;
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: #e0e0e0;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .loading {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+
+        .error-message {
+            background: rgba(255, 0, 0, 0.2);
+            border: 1px solid rgba(255, 0, 0, 0.5);
+            border-radius: 4px;
+            padding: 1rem;
+            margin: 1rem;
+            color: #ff6b6b;
+        }
+
+        /* Full-screen map modal */
+        .map-modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            animation: fadeIn 0.2s;
+        }
+
+        .map-modal.show {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .map-modal-header {
+            padding: 1rem 2rem;
+            background: rgba(0, 0, 0, 0.5);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .map-modal-header h2 {
+            color: #fff;
+            margin: 0;
+        }
+
+        .map-modal-close {
+            background: #4a90e2;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+
+        .map-modal-close:hover {
+            background: #357abd;
+        }
+
+        .map-container {
+            flex: 1;
+            overflow: hidden;
+            padding: 0;
+            position: relative;
+        }
+
+        .hex-map-svg {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            cursor: grab;
+            transition: transform 0.1s ease-out;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .hex-map-svg:active {
+            cursor: grabbing;
+        }
+
+        .hex-map-svg.dragging {
+            transition: none;
+        }
+
+        .hex-cell-svg {
+            cursor: pointer;
+            stroke: rgba(255, 255, 255, 0.3);
+            stroke-width: 1;
+            transition: all 0.2s;
+        }
+
+        .hex-cell-svg:hover {
+            stroke: rgba(255, 255, 255, 0.8);
+            stroke-width: 2;
+            filter: brightness(1.2);
+        }
+
+        .hex-cell-svg.current {
+            stroke: #4a90e2;
+            stroke-width: 6;
+            filter: brightness(1.5) drop-shadow(0 0 8px rgba(74, 144, 226, 0.8));
+            animation: pulse-current 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse-current {
+            0%, 100% {
+                stroke-width: 6;
+                filter: brightness(1.5) drop-shadow(0 0 8px rgba(74, 144, 226, 0.8));
+            }
+            50% {
+                stroke-width: 7;
+                filter: brightness(1.7) drop-shadow(0 0 12px rgba(74, 144, 226, 1));
+            }
+        }
+
+        .hex-cell-svg.discovered {
+            opacity: 1;
+        }
+
+        .hex-cell-svg.undiscovered {
+            opacity: 0.3;
+            filter: grayscale(0.8);
+        }
+
+        .hex-cell-svg.neighbor {
+            stroke: rgba(107, 255, 107, 0.6);
+            stroke-width: 2;
+        }
+
+        .hex-cell-svg.neighbor:hover {
+            stroke: #6bff6b;
+            stroke-width: 3;
+            filter: brightness(1.4);
+        }
+
+        .hex-icon {
+            font-size: 20px;
+            text-anchor: middle;
+            dominant-baseline: central;
+            pointer-events: none;
+        }
+
+        .hex-label {
+            font-size: 10px;
+            text-anchor: middle;
+            dominant-baseline: central;
+            fill: rgba(255, 255, 255, 0.7);
+            pointer-events: none;
+        }
+
+        .terrain-plains { fill: #90EE90; }
+        .terrain-forest { fill: #228B22; }
+        .terrain-mountain { fill: #8B7355; }
+        .terrain-water { fill: #4169E1; }
+        .terrain-desert { fill: #F4A460; }
+        .terrain-swamp { fill: #556B2F; }
+        .terrain-road { fill: #D3D3D3; }
+        .terrain-city { fill: #696969; }
+        .terrain-dungeon { fill: #2F2F2F; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div>
+            <a href="/">← Back to Games</a>
+            <h1 style="display: inline;">AutoDnD - Game</h1>
+        </div>
+        <div>
+            <button onclick="openDebugInspector()" style="margin-right: 0.5rem;">🐛 Debug State</button>
+            <button onclick="openConfigModal()">⚙️ Configure LLM</button>
+            <button onclick="openSecurityModal()" style="margin-left: 0.5rem;">🔒 Security Settings</button>
+        </div>
+    </div>
+
+    <div id="errorContainer"></div>
+
+    <div class="main-content">
+        <div class="chat-container">
+            <div class="messages" id="messages"></div>
+            <div class="input-area">
+                <input type="text" id="actionInput" placeholder="Describe your action..." onkeypress="handleKeyPress(event)">
+                <button id="submitBtn" onclick="submitAction()">Send</button>
+            </div>
+        </div>
+
+        <div class="game-status-panel">
+            <h3>Game Status</h3>
+            
+            <div class="status-section">
+                <div class="status-section-title">Player</div>
+                <div class="player-info" id="playerInfo">
+                    <div class="player-name">-</div>
+                    <div class="player-level">Level -</div>
+                </div>
+            </div>
+
+            <div class="status-section">
+                <div class="status-section-title">Status</div>
+                <div class="action-status" id="actionStatus">
+                    <div>
+                        <span class="status-indicator idle"></span>
+                        <span>Idle</span>
+                    </div>
+                    <div class="time-display" id="timeDisplay">Day 1, Morning</div>
+                </div>
+            </div>
+
+            <div class="status-section">
+                <div class="status-section-title">Stats</div>
+                <div class="stats-panel" id="statsPanel">
+                    <!-- Stats will be populated by JavaScript -->
+                </div>
+            </div>
+
+            <div class="status-section">
+                <div class="status-section-title">Hex Map</div>
+                <div class="hex-map-container" id="hexMapContainer">
+                    <div class="hex-map-grid" id="hexMapGrid">
+                        <!-- Hex map will be populated by JavaScript -->
+                    </div>
+                    <div class="hex-coords" id="hexCoords">Position: (0, 0)</div>
+                    <button onclick="openFullScreenMap()" class="btn-map-fullscreen" style="margin-top: 0.5rem; width: 100%; padding: 0.5rem; background: #4a90e2; color: white; border: none; border-radius: 4px; cursor: pointer;">🗺️ Full Screen Map</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Config Modal -->
+    <div id="configModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>LLM Configuration</h2>
+                <button class="modal-close" onclick="closeConfigModal()">&times;</button>
+            </div>
+            <form id="configForm">
+                <div class="form-group">
+                    <label for="provider">Provider</label>
+                    <select id="provider" name="provider" onchange="updateProviderFields()">
+                        <option value="ollama">Ollama</option>
+                        <option value="openai">OpenAI</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="apiKey">API Key (OpenAI)</label>
+                    <input type="text" id="apiKey" name="api_key" placeholder="sk-...">
+                </div>
+                <div class="form-group">
+                    <label for="baseUrl">Base URL</label>
+                    <input type="text" id="baseUrl" name="base_url" placeholder="http://localhost:11434/ (Ollama)">
+                </div>
+                <div class="form-group">
+                    <label for="model">Model</label>
+                    <input type="text" id="model" name="model" placeholder="gpt-oss:20b">
+                </div>
+
+                <button type="button" class="spoiler-toggle" onclick="toggleSpoiler('advancedSpoiler')">
+                    <span>Advanced Settings</span>
+                    <span id="advancedSpoilerArrow">▼</span>
+                </button>
+                <div id="advancedSpoiler" class="spoiler-content">
+                    <div class="form-group">
+                        <label for="temperature">Temperature (0.0 - 2.0)</label>
+                        <input type="number" id="temperature" name="temperature" step="0.1" min="0" max="2" value="0.7">
+                    </div>
+                    <div class="form-group">
+                        <label for="maxTokens">Max Tokens (optional)</label>
+                        <input type="number" id="maxTokens" name="max_tokens" min="1" placeholder="Leave empty for default">
+                    </div>
+                    <div class="form-group">
+                        <label for="timeout">Timeout (seconds)</label>
+                        <input type="number" id="timeout" name="timeout" min="1" value="60">
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" onclick="closeConfigModal()">Cancel</button>
+                    <button type="submit" class="btn-primary">Save & Apply</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Full Screen Map Modal -->
+    <div id="mapModal" class="map-modal">
+        <div class="map-modal-header">
+            <h2>🗺️ World Map</h2>
+            <button class="map-modal-close" onclick="closeFullScreenMap()">Close</button>
+        </div>
+        <div class="map-container" id="mapContainer">
+            <svg id="hexMapSvg" class="hex-map-svg" width="1200" height="800"></svg>
+        </div>
+    </div>
+
+    <!-- Security Config Modal -->
+    <div id="securityModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Security Configuration</h2>
+                <button class="modal-close" onclick="closeSecurityModal()">&times;</button>
+            </div>
+            <form id="securityForm">
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="securityEnabled" name="enabled" checked>
+                        Enable Security Layer
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="useLlmValidation" name="use_llm_validation" checked>
+                        Use LLM-based Validation (cheaper model)
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label for="maxInputLength">Max Input Length</label>
+                    <input type="number" id="maxInputLength" name="max_input_length" min="1" max="10000" value="1000">
+                </div>
+
+                <button type="button" class="spoiler-toggle" onclick="toggleSpoiler('securityAdvancedSpoiler')">
+                    <span>Security LLM Settings</span>
+                    <span id="securityAdvancedSpoilerArrow">▼</span>
+                </button>
+                <div id="securityAdvancedSpoiler" class="spoiler-content">
+                    <div class="form-group">
+                        <label for="securityProvider">Provider</label>
+                        <select id="securityProvider" name="security_llm_config.provider" onchange="updateSecurityProviderFields()">
+                            <option value="ollama">Ollama</option>
+                            <option value="openai">OpenAI</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="securityApiKey">API Key (OpenAI)</label>
+                        <input type="text" id="securityApiKey" name="security_llm_config.api_key" placeholder="sk-...">
+                    </div>
+                    <div class="form-group">
+                        <label for="securityBaseUrl">Base URL</label>
+                        <input type="text" id="securityBaseUrl" name="security_llm_config.base_url" placeholder="http://localhost:11434/ (Ollama)">
+                    </div>
+                    <div class="form-group">
+                        <label for="securityModel">Model (cheaper model recommended)</label>
+                        <input type="text" id="securityModel" name="security_llm_config.model" placeholder="qwen3:8b" value="qwen3:8b">
+                    </div>
+                    <div class="form-group">
+                        <label for="securityTemperature">Temperature (0.0 - 2.0)</label>
+                        <input type="number" id="securityTemperature" name="security_llm_config.temperature" step="0.1" min="0" max="2" value="0.1">
+                    </div>
+                    <div class="form-group">
+                        <label for="securityTimeout">Timeout (seconds)</label>
+                        <input type="number" id="securityTimeout" name="security_llm_config.timeout" min="1" value="30">
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" onclick="closeSecurityModal()">Cancel</button>
+                    <button type="submit" class="btn-primary">Save & Apply</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Debug State Inspector Modal -->
+    <div id="debugModal" class="modal">
+        <div class="modal-content" style="max-width: 90%; width: 90%;">
+            <div class="modal-header">
+                <h2>🐛 Debug State Inspector</h2>
+                <button class="modal-close" onclick="closeDebugInspector()">&times;</button>
+            </div>
+            <div style="margin-bottom: 1rem;">
+                <button onclick="refreshDebugState()" class="btn-secondary" style="margin-right: 0.5rem;">🔄 Refresh</button>
+                <button id="copyDebugStateBtn" onclick="copyDebugState()" class="btn-secondary">📋 Copy JSON</button>
+            </div>
+            <pre id="debugStateContent" style="background: rgba(0, 0, 0, 0.5); padding: 1rem; border-radius: 4px; overflow-x: auto; max-height: 70vh; overflow-y: auto; color: #e0e0e0; font-family: 'Courier New', monospace; font-size: 0.9em; white-space: pre-wrap; word-wrap: break-word;">No state data available</pre>
+        </div>
+    </div>
+
+    <script>
+        // Get API base URL from current origin
+        const API_BASE = `${window.location.origin}/api`;
+        
+        // Get game_id from URL path
+        const pathParts = window.location.pathname.split('/');
+        const gameId = pathParts[pathParts.length - 1] || pathParts[pathParts.length - 2];
+
+        let currentState = null;
+
+        function showError(message) {
+            const container = document.getElementById('errorContainer');
+            container.innerHTML = `<div class="error-message">${message}</div>`;
+        }
+
+        function clearError() {
+            document.getElementById('errorContainer').innerHTML = '';
+        }
+
+        // Load initial state
+        async function loadState() {
+            try {
+                clearError();
+                const response = await fetch(`${API_BASE}/games/${gameId}/state`);
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to load game state');
+                }
+                const data = await response.json();
+                currentState = data.state;
+                renderMessages(currentState.message_history.messages);
+                updateGameStatus(currentState);
+            } catch (error) {
+                console.error('Error loading state:', error);
+                showError(`Error loading game: ${error.message}. Make sure the game exists.`);
+            }
+        }
+
+        // Render messages
+        function renderMessages(messages) {
+            const container = document.getElementById('messages');
+            container.innerHTML = '';
+
+            // Sort messages by sequence_number (ascending - youngest to oldest at bottom)
+            const sortedMessages = [...messages].sort((a, b) => a.sequence_number - b.sequence_number);
+            
+            // Group consecutive tool messages
+            let i = 0;
+            while (i < sortedMessages.length) {
+                const msg = sortedMessages[i];
+                
+                // If this is a tool message, collect all consecutive tool messages
+                if (msg.source === 'tool') {
+                    const toolChain = [];
+                    while (i < sortedMessages.length && sortedMessages[i].source === 'tool') {
+                        toolChain.push(sortedMessages[i]);
+                        i++;
+                    }
+                    
+                    // Create a single message div for the tool chain
+                    const messageDiv = document.createElement('div');
+                    messageDiv.className = 'message tool';
+                    
+                    // Create header with first tool's timestamp
+                    const header = document.createElement('div');
+                    header.className = 'message-header';
+                    const toolCount = toolChain.length;
+                    header.textContent = `TOOL CHAIN (${toolCount} tool${toolCount > 1 ? 's' : ''}) - ${new Date(toolChain[0].timestamp).toLocaleTimeString()}`;
+                    messageDiv.appendChild(header);
+                    
+                    // Create spoiler toggle showing all tool titles
+                    const spoilerToggle = document.createElement('button');
+                    spoilerToggle.className = 'tool-spoiler-toggle';
+                    spoilerToggle.type = 'button';
+                    
+                    const toggleText = document.createElement('span');
+                    toggleText.style.flex = '1';
+                    toggleText.style.textAlign = 'left';
+                    
+                    // List all tool titles
+                    const toolTitles = toolChain.map((tool, idx) => {
+                        const toolName = tool.source_id || 'Unknown Tool';
+                        return `${idx + 1}. ${toolName}`;
+                    }).join(' | ');
+                    toggleText.textContent = `🔧 Tools: ${toolTitles}`;
+                    
+                    const toggleArrow = document.createElement('span');
+                    toggleArrow.textContent = '▼';
+                    toggleArrow.className = 'tool-spoiler-arrow';
+                    
+                    spoilerToggle.appendChild(toggleText);
+                    spoilerToggle.appendChild(toggleArrow);
+                    
+                    // Create spoiler content with expandable tool details
+                    const spoilerContent = document.createElement('div');
+                    spoilerContent.className = 'tool-spoiler-content';
+                    
+                    // Add each tool as an expandable item
+                    toolChain.forEach((tool, toolIdx) => {
+                        const toolItem = document.createElement('div');
+                        toolItem.style.marginBottom = '1rem';
+                        toolItem.style.borderBottom = toolIdx < toolChain.length - 1 ? '1px solid rgba(155, 89, 182, 0.2)' : 'none';
+                        toolItem.style.paddingBottom = toolIdx < toolChain.length - 1 ? '1rem' : '0';
+                        
+                        // Tool title (always visible)
+                        const toolTitle = document.createElement('div');
+                        toolTitle.style.fontWeight = '600';
+                        toolTitle.style.color = '#d8b3e8';
+                        toolTitle.style.marginBottom = '0.5rem';
+                        toolTitle.textContent = `${toolIdx + 1}. ${tool.source_id || 'Unknown Tool'}`;
+                        toolItem.appendChild(toolTitle);
+                        
+                        // Expandable tool details
+                        const toolDetailsToggle = document.createElement('button');
+                        toolDetailsToggle.className = 'details-toggle';
+                        toolDetailsToggle.textContent = 'Show Details';
+                        toolDetailsToggle.style.width = '100%';
+                        toolDetailsToggle.style.marginTop = '0.25rem';
+                        toolDetailsToggle.style.marginBottom = '0.5rem';
+                        
+                        const toolDetails = document.createElement('div');
+                        toolDetails.className = 'message-details';
+                        toolDetails.style.display = 'none';
+                        
+                        // Tool content
+                        const toolContent = document.createElement('div');
+                        toolContent.className = 'message-content';
+                        toolContent.style.whiteSpace = 'pre-wrap';
+                        toolContent.style.wordWrap = 'break-word';
+                        toolContent.textContent = tool.content;
+                        toolDetails.appendChild(toolContent);
+                        
+                        // Tool metadata if available
+                        if (tool.metadata && Object.keys(tool.metadata).length > 0) {
+                            const metadataDiv = document.createElement('div');
+                            metadataDiv.style.marginTop = '0.5rem';
+                            metadataDiv.style.paddingTop = '0.5rem';
+                            metadataDiv.style.borderTop = '1px solid rgba(155, 89, 182, 0.3)';
+                            metadataDiv.innerHTML = `<pre style="font-size: 0.9em; margin: 0; color: rgba(255, 255, 255, 0.7);">${JSON.stringify(tool.metadata, null, 2)}</pre>`;
+                            toolDetails.appendChild(metadataDiv);
+                        }
+                        
+                        // Toggle functionality for individual tool details
+                        toolDetailsToggle.onclick = () => {
+                            if (toolDetails.style.display === 'none') {
+                                toolDetails.style.display = 'block';
+                                toolDetailsToggle.textContent = 'Hide Details';
+                            } else {
+                                toolDetails.style.display = 'none';
+                                toolDetailsToggle.textContent = 'Show Details';
+                            }
+                        };
+                        
+                        toolItem.appendChild(toolDetailsToggle);
+                        toolItem.appendChild(toolDetails);
+                        spoilerContent.appendChild(toolItem);
+                    });
+                    
+                    // Main spoiler toggle functionality
+                    spoilerToggle.onclick = () => {
+                        if (spoilerContent.classList.contains('show')) {
+                            spoilerContent.classList.remove('show');
+                            toggleArrow.textContent = '▼';
+                        } else {
+                            spoilerContent.classList.add('show');
+                            toggleArrow.textContent = '▲';
+                        }
+                    };
+                    
+                    messageDiv.appendChild(spoilerToggle);
+                    messageDiv.appendChild(spoilerContent);
+                    container.appendChild(messageDiv);
+                } else {
+                    // Non-tool message - render normally
+                    const messageDiv = document.createElement('div');
+                    messageDiv.className = `message ${msg.source}`;
+                    
+                    const header = document.createElement('div');
+                    header.className = 'message-header';
+                    header.textContent = `${msg.source.toUpperCase()}${msg.source_id ? ` (${msg.source_id})` : ''} - ${new Date(msg.timestamp).toLocaleTimeString()}`;
+                    
+                    const content = document.createElement('div');
+                    content.className = 'message-content';
+                    
+                    // Render markdown for master messages, plain text for others
+                    if (msg.source === 'master') {
+                        // Use marked.js to render markdown
+                        if (typeof marked !== 'undefined') {
+                            // Configure marked options
+                            marked.setOptions({
+                                breaks: true,  // Convert line breaks to <br>
+                                gfm: true,     // GitHub Flavored Markdown
+                            });
+                            content.innerHTML = marked.parse(msg.content);
+                        } else {
+                            // Fallback to plain text if marked.js not loaded
+                            content.textContent = msg.content;
+                        }
+                        
+                        // Add recover link for master messages
+                        const recoverLink = document.createElement('a');
+                        recoverLink.href = '#';
+                        recoverLink.textContent = '↩️ Recover to this point';
+                        recoverLink.style.cssText = 'display: inline-block; margin-top: 0.75rem; padding: 0.4rem 0.8rem; background: rgba(74, 144, 226, 0.2); border: 1px solid rgba(74, 144, 226, 0.4); border-radius: 4px; color: #4a90e2; text-decoration: none; font-size: 0.85em; cursor: pointer; font-weight: 500;';
+                        recoverLink.onmouseover = function() { 
+                            this.style.background = 'rgba(74, 144, 226, 0.3)';
+                            this.style.borderColor = 'rgba(74, 144, 226, 0.6)';
+                        };
+                        recoverLink.onmouseout = function() { 
+                            this.style.background = 'rgba(74, 144, 226, 0.2)';
+                            this.style.borderColor = 'rgba(74, 144, 226, 0.4)';
+                        };
+                        recoverLink.onclick = function(e) {
+                            e.preventDefault();
+                            recoverToMessage(msg.sequence_number);
+                        };
+                        content.appendChild(recoverLink);
+                    } else {
+                        // Plain text for non-master messages
+                        content.textContent = msg.content;
+                    }
+                    
+                    messageDiv.appendChild(header);
+                    messageDiv.appendChild(content);
+                    container.appendChild(messageDiv);
+                    
+                    i++;
+                }
+            }
+            
+            // Scroll to bottom
+            container.scrollTop = container.scrollHeight;
+        }
+
+        // Update game status panel
+        function updateGameStatus(state) {
+            if (!state || !state.players || state.players.length === 0) {
+                return;
+            }
+
+            // Get first player (for now, single player)
+            const player = state.players[0];
+
+            // Update player info
+            const playerInfo = document.getElementById('playerInfo');
+            if (playerInfo) {
+                playerInfo.innerHTML = `
+                    <div class="player-name">${player.name}</div>
+                    <div class="player-level">Level ${player.level}</div>
+                `;
+            }
+
+            // Update time display
+            const timeDisplay = document.getElementById('timeDisplay');
+            if (timeDisplay && state.current_time) {
+                const time = state.current_time;
+                const timeOfDay = time.half_day_increment === 0 ? 'Morning' : 'Evening';
+                timeDisplay.textContent = `Day ${time.current_day}, ${timeOfDay}`;
+            }
+
+            // Update action status
+            const actionStatus = document.getElementById('actionStatus');
+            if (actionStatus) {
+                let statusText = 'Idle';
+                let statusClass = 'idle';
+                
+                if (state.combat_state && state.combat_state.is_active) {
+                    statusText = 'In Combat';
+                    statusClass = 'combat';
+                } else {
+                    // Determine status from last action (simplified)
+                    const lastMessage = state.message_history && state.message_history.messages && 
+                        state.message_history.messages.length > 0 
+                        ? state.message_history.messages[state.message_history.messages.length - 1]
+                        : null;
+                    if (lastMessage && lastMessage.metadata && lastMessage.metadata.action_type) {
+                        const actionType = lastMessage.metadata.action_type;
+                        if (actionType === 'rest') {
+                            statusText = 'Resting';
+                            statusClass = 'resting';
+                        } else if (actionType === 'move' || actionType === 'search') {
+                            statusText = 'Exploring';
+                            statusClass = 'exploring';
+                        }
+                    }
+                }
+                
+                actionStatus.innerHTML = `
+                    <div>
+                        <span class="status-indicator ${statusClass}"></span>
+                        <span>${statusText}</span>
+                    </div>
+                    <div class="time-display" id="timeDisplay">${timeDisplay ? timeDisplay.textContent : ''}</div>
+                `;
+            }
+
+            // Update stats panel
+            const statsPanel = document.getElementById('statsPanel');
+            if (statsPanel && player.base_stats && player.current_stats) {
+                const stats = ['health', 'strength', 'dexterity', 'intelligence', 'charisma'];
+                const statLabels = {
+                    health: 'Health',
+                    strength: 'Strength',
+                    dexterity: 'Dexterity',
+                    intelligence: 'Intelligence',
+                    charisma: 'Charisma'
+                };
+
+                statsPanel.innerHTML = stats.map(statName => {
+                    const baseValue = player.base_stats[statName] || player.base_stats[`max_${statName}`] || 0;
+                    const currentValue = player.current_stats[statName] || player.current_stats[`max_${statName}`] || 0;
+                    const modifier = currentValue - baseValue;
+                    const modifierText = modifier !== 0 
+                        ? `<span class="stat-modifier ${modifier > 0 ? 'positive' : 'negative'}">${modifier > 0 ? '+' : ''}${modifier}</span>`
+                        : '';
+                    
+                    return `
+                        <div class="stat-item">
+                            <span class="stat-name">${statLabels[statName]}</span>
+                            <div class="stat-values">
+                                <div class="stat-current">${currentValue}${modifierText}</div>
+                                <div class="stat-base">Base: ${baseValue}</div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            // Update hex map
+            updateHexMap(state, player);
+        }
+
+        // Hex distance calculation (for hex grids)
+        function hexDistance(q1, r1, q2, r2) {
+            // Convert axial to cube coordinates
+            const x1 = q1;
+            const z1 = r1;
+            const y1 = -x1 - z1;
+            const x2 = q2;
+            const z2 = r2;
+            const y2 = -x2 - z2;
+            // Cube distance
+            return (Math.abs(x1 - x2) + Math.abs(y1 - y2) + Math.abs(z1 - z2)) / 2;
+        }
+
+        // Update hex map display
+        function updateHexMap(state, player) {
+            const hexMapGrid = document.getElementById('hexMapGrid');
+            const hexCoords = document.getElementById('hexCoords');
+            
+            if (!hexMapGrid || !hexCoords || !player.position) {
+                return;
+            }
+
+            // Update coordinates display
+            hexCoords.textContent = `Position: (${player.position.q}, ${player.position.r})`;
+
+            // Get discovered cells around player
+            const map = state.world_map || { cells: {} };
+            const cells = map.cells || {};
+            
+            // Get neighbors for semi-discovered display
+            const neighborCoords = getHexNeighbors(player.position.q, player.position.r);
+            const radius = 2;
+            const displayCells = [];
+            
+            // Add player's current cell
+            const playerKey = `(${player.position.q},${player.position.r})`;
+            const playerCell = cells[playerKey];
+            displayCells.push({
+                coordinates: { q: player.position.q, r: player.position.r },
+                terrain: playerCell ? playerCell.terrain : 'plains',
+                discovered: true,
+                isCurrent: true
+            });
+
+            // Add all discovered cells within radius
+            Object.values(cells).forEach(cell => {
+                if (cell && cell.coordinates) {
+                    const q = cell.coordinates.q;
+                    const r = cell.coordinates.r;
+                    const dist = hexDistance(player.position.q, player.position.r, q, r);
+                    
+                    if (dist <= radius) {
+                        const existing = displayCells.find(c => 
+                            c.coordinates.q === q && c.coordinates.r === r
+                        );
+                        if (!existing) {
+                            displayCells.push({
+                                coordinates: { q, r },
+                                terrain: cell.terrain || 'plains',
+                                discovered: cell.discovered || false,
+                                isCurrent: false
+                            });
+                        }
+                    }
+                }
+            });
+
+            // Add neighbor cells (semi-discovered) if not already added
+            neighborCoords.forEach(neighbor => {
+                const existing = displayCells.find(c => 
+                    c.coordinates.q === neighbor.q && c.coordinates.r === neighbor.r
+                );
+                if (!existing) {
+                    const neighborKey = `(${neighbor.q},${neighbor.r})`;
+                    const neighborCell = cells[neighborKey];
+                    displayCells.push({
+                        coordinates: { q: neighbor.q, r: neighbor.r },
+                        terrain: neighborCell ? neighborCell.terrain : 'plains',
+                        discovered: neighborCell ? (neighborCell.discovered || false) : false,
+                        isCurrent: false,
+                        isNeighbor: true
+                    });
+                } else {
+                    // Mark as neighbor if it's within range
+                    existing.isNeighbor = true;
+                }
+            });
+
+            if (displayCells.length === 0) {
+                hexMapGrid.innerHTML = '<div style="color: rgba(255,255,255,0.5); text-align: center; padding: 1rem;">No map data</div>';
+                return;
+            }
+
+            // Create a simple grid representation
+            // Group cells by r coordinate for rows
+            const rows = {};
+            displayCells.forEach(cell => {
+                const r = cell.coordinates.r;
+                if (!rows[r]) {
+                    rows[r] = [];
+                }
+                rows[r].push(cell);
+            });
+
+            const sortedRows = Object.keys(rows).sort((a, b) => parseInt(a) - parseInt(b));
+            
+            hexMapGrid.innerHTML = sortedRows.map(r => {
+                const rowCells = rows[r].sort((a, b) => a.coordinates.q - b.coordinates.q);
+                return `
+                    <div class="hex-map-row">
+                        ${rowCells.map(cell => {
+                            const isCurrent = cell.isCurrent || 
+                                (cell.coordinates.q === player.position.q && 
+                                 cell.coordinates.r === player.position.r);
+                            const isNeighbor = cell.isNeighbor && !isCurrent;
+                            let cellClass = `hex-cell`;
+                            if (cell.discovered) {
+                                cellClass += ' discovered';
+                            } else if (isNeighbor) {
+                                cellClass += ' semi-discovered';
+                            }
+                            if (isCurrent) {
+                                cellClass += ' current';
+                            }
+                            if (isNeighbor) {
+                                cellClass += ' neighbor';
+                            }
+                            const terrainChar = cell.terrain ? cell.terrain.charAt(0).toUpperCase() : '?';
+                            return `<div class="${cellClass}" title="(${cell.coordinates.q}, ${cell.coordinates.r}) - ${cell.terrain || 'unknown'}">${terrainChar}</div>`;
+                        }).join('')}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Drag state for map
+        let mapDragState = {
+            isDragging: false,
+            startX: 0,
+            startY: 0,
+            offsetX: 0,
+            offsetY: 0
+        };
+
+        // Full-screen map functions
+        function openFullScreenMap() {
+            const modal = document.getElementById('mapModal');
+            const svg = document.getElementById('hexMapSvg');
+            modal.classList.add('show');
+            
+            if (currentState) {
+                renderFullScreenMap(currentState);
+                // Center on player after rendering (small delay to ensure container has dimensions)
+                setTimeout(() => {
+                    centerMapOnPlayer(currentState);
+                }, 10);
+            }
+        }
+
+        // Center map on player position
+        function centerMapOnPlayer(state) {
+            const svg = document.getElementById('hexMapSvg');
+            const mapContainer = document.getElementById('mapContainer');
+            if (!svg || !mapContainer || !state || !state.players || state.players.length === 0) {
+                return;
+            }
+
+            const player = state.players[0];
+            const playerPos = player.position;
+            const map = state.world_map || { cells: {} };
+            const cells = map.cells || {};
+
+            // Get all cells to calculate bounds (same as in renderFullScreenMap)
+            const allCells = [];
+            Object.values(cells).forEach(cell => {
+                if (cell && cell.coordinates) {
+                    allCells.push({
+                        q: cell.coordinates.q,
+                        r: cell.coordinates.r
+                    });
+                }
+            });
+
+            // Add player cell if not in map
+            const playerCellExists = allCells.find(c => c.q === playerPos.q && c.r === playerPos.r);
+            if (!playerCellExists) {
+                allCells.push({
+                    q: playerPos.q,
+                    r: playerPos.r
+                });
+            }
+
+            if (allCells.length === 0) {
+                return;
+            }
+
+            const minQ = Math.min(...allCells.map(c => c.q));
+            const minR = Math.min(...allCells.map(c => c.r));
+
+            const hexSize = 40;
+            const padding = 50;
+
+            // Calculate player's position in pixel coordinates relative to map bounds
+            // This matches the calculation in renderFullScreenMap
+            const playerPixel = hexToPixel(playerPos.q - minQ, playerPos.r - minR, hexSize);
+            const playerX = playerPixel.x + padding + hexSize * Math.sqrt(3);
+            const playerY = playerPixel.y + padding + hexSize;
+
+            // Get SVG dimensions
+            const svgWidth = parseFloat(svg.getAttribute('width')) || 1200;
+            const svgHeight = parseFloat(svg.getAttribute('height')) || 800;
+
+            // Get container dimensions (viewport)
+            const containerWidth = mapContainer.clientWidth;
+            const containerHeight = mapContainer.clientHeight;
+
+            // Calculate offset to center player in viewport
+            // The SVG is positioned with top: 50%, left: 50%, and transform: translate(-50%, -50%)
+            // The -50% moves the SVG so its center is at (containerWidth/2, containerHeight/2)
+            // Then we add offsetX, offsetY
+            // 
+            // A point at (playerX, playerY) in SVG coordinates will be at screen position:
+            // X: containerWidth/2 - svgWidth/2 + offsetX + playerX
+            // Y: containerHeight/2 - svgHeight/2 + offsetY + playerY
+            //
+            // We want this to be at container center:
+            // containerWidth/2 = containerWidth/2 - svgWidth/2 + offsetX + playerX
+            // Solving: offsetX = svgWidth/2 - playerX
+            mapDragState.offsetX = (svgWidth / 2) - playerX;
+            mapDragState.offsetY = (svgHeight / 2) - playerY;
+
+            updateMapTransform(svg);
+        }
+
+        function closeFullScreenMap() {
+            const modal = document.getElementById('mapModal');
+            modal.classList.remove('show');
+        }
+
+        // Update map transform
+        function updateMapTransform(svg) {
+            svg.style.transform = `translate(calc(-50% + ${mapDragState.offsetX}px), calc(-50% + ${mapDragState.offsetY}px))`;
+        }
+
+        // Setup drag functionality for map
+        function setupMapDrag(svg) {
+            svg.addEventListener('mousedown', (e) => {
+                // Don't drag if clicking on a clickable hex cell (neighbors)
+                if (e.target.tagName === 'path' && e.target.classList.contains('neighbor')) {
+                    return; // Allow click to work
+                }
+                
+                mapDragState.isDragging = true;
+                mapDragState.startX = e.clientX - mapDragState.offsetX;
+                mapDragState.startY = e.clientY - mapDragState.offsetY;
+                svg.classList.add('dragging');
+                e.preventDefault();
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (!mapDragState.isDragging) return;
+                
+                mapDragState.offsetX = e.clientX - mapDragState.startX;
+                mapDragState.offsetY = e.clientY - mapDragState.startY;
+                
+                updateMapTransform(svg);
+                e.preventDefault();
+            });
+
+            document.addEventListener('mouseup', () => {
+                if (mapDragState.isDragging) {
+                    mapDragState.isDragging = false;
+                    svg.classList.remove('dragging');
+                }
+            });
+
+            // Also handle touch events for mobile
+            svg.addEventListener('touchstart', (e) => {
+                // Don't drag if clicking on a clickable hex cell
+                if (e.target.tagName === 'path' && e.target.classList.contains('neighbor')) {
+                    return;
+                }
+                
+                const touch = e.touches[0];
+                mapDragState.isDragging = true;
+                mapDragState.startX = touch.clientX - mapDragState.offsetX;
+                mapDragState.startY = touch.clientY - mapDragState.offsetY;
+                svg.classList.add('dragging');
+                e.preventDefault();
+            });
+
+            document.addEventListener('touchmove', (e) => {
+                if (!mapDragState.isDragging) return;
+                
+                const touch = e.touches[0];
+                mapDragState.offsetX = touch.clientX - mapDragState.startX;
+                mapDragState.offsetY = touch.clientY - mapDragState.startY;
+                
+                updateMapTransform(svg);
+                e.preventDefault();
+            });
+
+            document.addEventListener('touchend', () => {
+                if (mapDragState.isDragging) {
+                    mapDragState.isDragging = false;
+                    svg.classList.remove('dragging');
+                }
+            });
+        }
+
+        // Hex neighbor calculation (axial coordinates)
+        function getHexNeighbors(q, r) {
+            return [
+                {q: q + 1, r: r},      // East
+                {q: q + 1, r: r - 1},  // Northeast
+                {q: q, r: r - 1},      // Northwest
+                {q: q - 1, r: r},      // West
+                {q: q - 1, r: r + 1},  // Southwest
+                {q: q, r: r + 1}       // Southeast
+            ];
+        }
+
+        // Convert hex coordinates to pixel position (pointy-topped hexagons)
+        function hexToPixel(q, r, size = 30) {
+            const x = size * (Math.sqrt(3) * q + Math.sqrt(3) / 2 * r);
+            const y = size * (3/2 * r);
+            return {x, y};
+        }
+
+        // Terrain icons mapping
+        const terrainIcons = {
+            'plains': '🌾',
+            'forest': '🌲',
+            'mountain': '⛰️',
+            'water': '🌊',
+            'desert': '🏜️',
+            'swamp': '🌿',
+            'road': '🛤️',
+            'city': '🏛️',
+            'dungeon': '🏰'
+        };
+
+        // Render full-screen hex map
+        function renderFullScreenMap(state) {
+            const svg = document.getElementById('hexMapSvg');
+            if (!svg || !state || !state.players || state.players.length === 0) {
+                return;
+            }
+
+            const player = state.players[0];
+            const playerPos = player.position;
+            const map = state.world_map || { cells: {} };
+            const cells = map.cells || {};
+
+            // Get ALL cells from the map (full map view)
+            const allCells = [];
+            const neighborCoords = getHexNeighbors(playerPos.q, playerPos.r);
+            
+            // Add all cells from the world map
+            Object.values(cells).forEach(cell => {
+                if (cell && cell.coordinates) {
+                    allCells.push({
+                        q: cell.coordinates.q,
+                        r: cell.coordinates.r,
+                        terrain: cell.terrain || 'plains',
+                        discovered: cell.discovered || false,
+                        contents: cell.contents || []
+                    });
+                }
+            });
+
+            // If player's current cell doesn't exist in map, add it
+            const playerCellKey = `(${playerPos.q},${playerPos.r})`;
+            const playerCell = cells[playerCellKey];
+            const playerCellExists = allCells.find(c => c.q === playerPos.q && c.r === playerPos.r);
+            if (!playerCellExists) {
+                allCells.push({
+                    q: playerPos.q,
+                    r: playerPos.r,
+                    terrain: playerCell ? playerCell.terrain : 'plains',
+                    discovered: true,
+                    contents: playerCell ? (playerCell.contents || []) : []
+                });
+            }
+
+            // Calculate bounds and center
+            if (allCells.length === 0) {
+                svg.innerHTML = '<text x="600" y="400" text-anchor="middle" fill="white">No map data</text>';
+                return;
+            }
+
+            const minQ = Math.min(...allCells.map(c => c.q));
+            const maxQ = Math.max(...allCells.map(c => c.q));
+            const minR = Math.min(...allCells.map(c => c.r));
+            const maxR = Math.max(...allCells.map(c => c.r));
+
+            const hexSize = 40;
+            const padding = 50;
+            // For pointy-topped hexagons: width is sqrt(3) * size, height is 3/2 * size
+            // Calculate proper width/height to fit all hexes
+            const width = (maxQ - minQ + 1) * hexSize * Math.sqrt(3) + padding * 2;
+            const height = (maxR - minR + 1) * hexSize * 1.5 + padding * 2;
+
+            // Set SVG size to fit all cells (use viewBox for scaling)
+            const svgWidth = Math.max(1200, width);
+            const svgHeight = Math.max(800, height);
+            svg.setAttribute('width', svgWidth);
+            svg.setAttribute('height', svgHeight);
+            svg.setAttribute('viewBox', `0 0 ${svgWidth} ${svgHeight}`);
+            svg.setAttribute('preserveAspectRatio', 'none');
+
+            // Setup drag handlers (only once)
+            if (!svg.hasAttribute('data-drag-setup')) {
+                setupMapDrag(svg);
+                svg.setAttribute('data-drag-setup', 'true');
+            }
+
+            // Clear SVG
+            svg.innerHTML = '';
+
+            // Create hexagon path (pointy-topped hexagons)
+            // For pointy-topped: start from rightmost point (30°), then 90°, 150°, 210°, 270°, 330°
+            function createHexPath(x, y, size) {
+                const points = [];
+                for (let i = 0; i < 6; i++) {
+                    // Start at 30° (rightmost point) for pointy-topped hexagons
+                    // Angles: 30°, 90°, 150°, 210°, 270°, 330°
+                    const angle = Math.PI / 6 + Math.PI / 3 * i;
+                    const px = x + size * Math.cos(angle);
+                    const py = y + size * Math.sin(angle);
+                    points.push(`${px},${py}`);
+                }
+                return `M ${points.join(' L ')} Z`;
+            }
+
+            // Render each cell
+            allCells.forEach(cell => {
+                const pixel = hexToPixel(cell.q - minQ, cell.r - minR, hexSize);
+                // For pointy-topped: center offset is sqrt(3) for x, size for y
+                const x = pixel.x + padding + hexSize * Math.sqrt(3);
+                const y = pixel.y + padding + hexSize;
+
+                const isCurrent = cell.q === playerPos.q && cell.r === playerPos.r;
+                const isNeighbor = neighborCoords.some(n => n.q === cell.q && n.r === cell.r);
+                
+                let classes = `hex-cell-svg terrain-${cell.terrain}`;
+                if (isCurrent) {
+                    classes += ' current';
+                } else if (isNeighbor && !isCurrent) {
+                    classes += ' neighbor';
+                }
+                if (!cell.discovered) {
+                    classes += ' undiscovered';
+                } else {
+                    classes += ' discovered';
+                }
+
+                const hexPath = createHexPath(x, y, hexSize);
+                const hex = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                hex.setAttribute('d', hexPath);
+                hex.setAttribute('class', classes);
+                hex.setAttribute('data-q', cell.q);
+                hex.setAttribute('data-r', cell.r);
+                
+                if (isNeighbor && !isCurrent) {
+                    hex.style.cursor = 'pointer';
+                    hex.addEventListener('click', () => moveToHex(cell.q, cell.r));
+                }
+
+                svg.appendChild(hex);
+
+                // Add icon (always show, but with reduced opacity if undiscovered)
+                const icon = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                icon.setAttribute('x', x);
+                icon.setAttribute('y', y);
+                icon.setAttribute('class', 'hex-icon');
+                if (!cell.discovered && !isNeighbor) {
+                    icon.setAttribute('opacity', '0.3');
+                }
+                icon.textContent = terrainIcons[cell.terrain] || '❓';
+                svg.appendChild(icon);
+
+                // Add special player marker for current position
+                if (isCurrent) {
+                    const playerMarker = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    playerMarker.setAttribute('x', x);
+                    playerMarker.setAttribute('y', y - hexSize * 0.4);
+                    playerMarker.setAttribute('class', 'hex-icon');
+                    playerMarker.setAttribute('font-size', '28px');
+                    playerMarker.setAttribute('fill', '#4a90e2');
+                    playerMarker.setAttribute('font-weight', 'bold');
+                    playerMarker.style.filter = 'drop-shadow(0 0 4px rgba(74, 144, 226, 1))';
+                    playerMarker.textContent = '⚔️';
+                    svg.appendChild(playerMarker);
+                }
+
+                // Add coordinates label
+                const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                label.setAttribute('x', x);
+                label.setAttribute('y', y + hexSize/2);
+                label.setAttribute('class', 'hex-label');
+                label.textContent = `(${cell.q},${cell.r})`;
+                svg.appendChild(label);
+            });
+        }
+
+        // Move hero to clicked hex
+        async function moveToHex(q, r) {
+            const player = currentState.players[0];
+            const currentQ = player.position.q;
+            const currentR = player.position.r;
+            
+            // Verify it's a neighbor
+            const neighbors = getHexNeighbors(currentQ, currentR);
+            const isNeighbor = neighbors.some(n => n.q === q && n.r === r);
+            
+            if (!isNeighbor) {
+                alert('You can only move to adjacent hexes!');
+                return;
+            }
+
+            // Submit move action
+            const input = document.getElementById('actionInput');
+            const btn = document.getElementById('submitBtn');
+            
+            input.disabled = true;
+            btn.disabled = true;
+            document.body.classList.add('loading');
+            clearError();
+            
+            try {
+                const response = await fetch(`${API_BASE}/games/${gameId}/action`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        action: `move to hex (${q}, ${r})`,
+                    }),
+                });
+                
+                const data = await response.json();
+
+                if (data.success) {
+                    currentState = data.state;
+                    // Debug: log player position
+                    if (currentState.players && currentState.players.length > 0) {
+                        console.log('Player position after move:', currentState.players[0].position);
+                    }
+                    renderMessages(currentState.message_history.messages);
+                    updateGameStatus(currentState);
+                    renderFullScreenMap(currentState); // Update map
+                } else {
+                    showError(`Error: ${data.error || 'Unknown error'}`);
+                }
+            } catch (error) {
+                console.error('Error moving:', error);
+                showError(`Error moving: ${error.message}`);
+            } finally {
+                input.disabled = false;
+                btn.disabled = false;
+                document.body.classList.remove('loading');
+            }
+        }
+
+        function toggleDetails(messageDiv) {
+            const details = messageDiv.querySelector('.message-details');
+            const toggle = messageDiv.querySelector('.details-toggle');
+            if (details.classList.contains('show')) {
+                details.classList.remove('show');
+                toggle.textContent = 'Show Details';
+            } else {
+                details.classList.add('show');
+                toggle.textContent = 'Hide Details';
+            }
+        }
+
+        // Submit action
+        async function submitAction() {
+            const input = document.getElementById('actionInput');
+            const btn = document.getElementById('submitBtn');
+            const action = input.value.trim();
+            
+            if (!action) return;
+            
+            // Disable input
+            input.disabled = true;
+            btn.disabled = true;
+            document.body.classList.add('loading');
+            clearError();
+            
+            try {
+                const response = await fetch(`${API_BASE}/games/${gameId}/action`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        action: action,
+                    }),
+                });
+                
+                const data = await response.json();
+
+                if (data.success) {
+                    currentState = data.state;
+                    // Debug: log player position
+                    if (currentState.players && currentState.players.length > 0) {
+                        console.log('Player position after action:', currentState.players[0].position);
+                    }
+                    renderMessages(currentState.message_history.messages);
+                    updateGameStatus(currentState);
+                    // Update full-screen map if it's open
+                    const mapModal = document.getElementById('mapModal');
+                    if (mapModal && mapModal.classList.contains('show')) {
+                        renderFullScreenMap(currentState);
+                    }
+                    input.value = '';
+                } else {
+                    showError(`Error: ${data.error || 'Unknown error'}`);
+                }
+            } catch (error) {
+                console.error('Error submitting action:', error);
+                showError(`Error submitting action: ${error.message}`);
+            } finally {
+                input.disabled = false;
+                btn.disabled = false;
+                document.body.classList.remove('loading');
+                input.focus();
+            }
+        }
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                submitAction();
+            }
+        }
+
+        // Config modal
+        async function openConfigModal() {
+            const modal = document.getElementById('configModal');
+            modal.classList.add('show');
+            
+            // Load current config
+            try {
+                const response = await fetch(`${API_BASE}/config/llm`);
+                const data = await response.json();
+                const config = data.config;
+                
+                document.getElementById('provider').value = config.provider;
+                document.getElementById('apiKey').value = config.api_key || '';
+                document.getElementById('baseUrl').value = config.base_url || '';
+                document.getElementById('model').value = config.model;
+                document.getElementById('temperature').value = config.temperature;
+                document.getElementById('maxTokens').value = config.max_tokens || '';
+                document.getElementById('timeout').value = config.timeout;
+                
+                updateProviderFields();
+            } catch (error) {
+                console.error('Error loading config:', error);
+            }
+        }
+
+        function closeConfigModal() {
+            document.getElementById('configModal').classList.remove('show');
+        }
+
+        function updateProviderFields() {
+            const provider = document.getElementById('provider').value;
+            const apiKeyGroup = document.getElementById('apiKey').parentElement;
+            const baseUrlInput = document.getElementById('baseUrl');
+            
+            if (provider === 'ollama') {
+                apiKeyGroup.style.display = 'none';
+                baseUrlInput.placeholder = 'http://localhost:11434/';
+            } else {
+                apiKeyGroup.style.display = 'block';
+                baseUrlInput.placeholder = 'Leave empty for default OpenAI endpoint';
+            }
+        }
+
+        // Security modal
+        async function openSecurityModal() {
+            const modal = document.getElementById('securityModal');
+            modal.classList.add('show');
+            
+            // Load current config
+            try {
+                const response = await fetch(`${API_BASE}/config/security`);
+                const data = await response.json();
+                const config = data.config;
+                
+                document.getElementById('securityEnabled').checked = config.enabled;
+                document.getElementById('useLlmValidation').checked = config.use_llm_validation;
+                document.getElementById('maxInputLength').value = config.max_input_length;
+                
+                if (config.security_llm_config) {
+                    const secConfig = config.security_llm_config;
+                    document.getElementById('securityProvider').value = secConfig.provider;
+                    document.getElementById('securityApiKey').value = secConfig.api_key || '';
+                    document.getElementById('securityBaseUrl').value = secConfig.base_url || '';
+                    document.getElementById('securityModel').value = secConfig.model;
+                    document.getElementById('securityTemperature').value = secConfig.temperature;
+                    document.getElementById('securityTimeout').value = secConfig.timeout;
+                }
+                
+                updateSecurityProviderFields();
+            } catch (error) {
+                console.error('Error loading security config:', error);
+            }
+        }
+
+        function closeSecurityModal() {
+            document.getElementById('securityModal').classList.remove('show');
+        }
+
+        function updateSecurityProviderFields() {
+            const provider = document.getElementById('securityProvider').value;
+            const apiKeyGroup = document.getElementById('securityApiKey').parentElement;
+            const baseUrlInput = document.getElementById('securityBaseUrl');
+            
+            if (provider === 'ollama') {
+                apiKeyGroup.style.display = 'none';
+                baseUrlInput.placeholder = 'http://localhost:11434/';
+            } else {
+                apiKeyGroup.style.display = 'block';
+                baseUrlInput.placeholder = 'Leave empty for default OpenAI endpoint';
+            }
+        }
+
+        // Security form submission
+        document.getElementById('securityForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const config = {
+                enabled: document.getElementById('securityEnabled').checked,
+                use_llm_validation: document.getElementById('useLlmValidation').checked,
+                max_input_length: parseInt(document.getElementById('maxInputLength').value),
+            };
+            
+            // Build security_llm_config if LLM validation is enabled
+            if (config.use_llm_validation) {
+                config.security_llm_config = {
+                    provider: document.getElementById('securityProvider').value,
+                    api_key: document.getElementById('securityApiKey').value || null,
+                    base_url: document.getElementById('securityBaseUrl').value || null,
+                    model: document.getElementById('securityModel').value,
+                    temperature: parseFloat(document.getElementById('securityTemperature').value),
+                    timeout: parseInt(document.getElementById('securityTimeout').value),
+                };
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/config/security`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(config),
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    closeSecurityModal();
+                    alert('Security configuration updated successfully!');
+                } else {
+                    alert(`Error: ${data.error || 'Unknown error'}`);
+                }
+            } catch (error) {
+                console.error('Error updating security config:', error);
+                alert(`Error updating security config: ${error.message}`);
+            }
+        });
+
+        function toggleSpoiler(id) {
+            const content = document.getElementById(id);
+            const arrow = document.getElementById(id + 'Arrow');
+            if (content.classList.contains('show')) {
+                content.classList.remove('show');
+                arrow.textContent = '▼';
+            } else {
+                content.classList.add('show');
+                arrow.textContent = '▲';
+            }
+        }
+
+        // Debug State Inspector functions
+        function openDebugInspector() {
+            const modal = document.getElementById('debugModal');
+            modal.classList.add('show');
+            refreshDebugState();
+        }
+
+        function closeDebugInspector() {
+            document.getElementById('debugModal').classList.remove('show');
+        }
+
+        function refreshDebugState() {
+            const content = document.getElementById('debugStateContent');
+            if (currentState) {
+                try {
+                    let copyState = structuredClone(currentState);
+                    copyState.world_map.cells = "<Map is here, but very large; would be copied with button above />";
+                    const formattedJson = JSON.stringify(copyState, null, 2);
+                    content.textContent = formattedJson;
+                } catch (error) {
+                    content.textContent = `Error formatting state: ${error.message}`;
+                }
+            } else {
+                content.textContent = 'No state data available. State will appear after loading the game.';
+            }
+        }
+
+        async function copyDebugState() {
+            const text = JSON.stringify(currentState, null, 2);
+
+            try {
+                await navigator.clipboard.writeText(text);
+                // Show temporary feedback
+                const btn = document.getElementById('copyDebugStateBtn');
+                if (btn) {
+                    const originalText = btn.textContent;
+                    btn.textContent = '✓ Copied!';
+                    setTimeout(() => {
+                        btn.textContent = originalText;
+                    }, 2000);
+                }
+            } catch (error) {
+                console.error('Failed to copy:', error);
+                alert('Failed to copy to clipboard. Please select and copy manually.');
+            }
+        }
+
+        // Handle form submission
+        document.getElementById('configForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const config = {
+                provider: formData.get('provider'),
+                api_key: formData.get('api_key') || null,
+                base_url: formData.get('base_url') || null,
+                model: formData.get('model'),
+                temperature: parseFloat(formData.get('temperature')),
+                max_tokens: formData.get('max_tokens') ? parseInt(formData.get('max_tokens')) : null,
+                timeout: parseInt(formData.get('timeout')),
+            };
+            
+            try {
+                const response = await fetch(`${API_BASE}/config/llm`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(config),
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('Configuration updated successfully!');
+                    closeConfigModal();
+                } else {
+                    alert(`Error: ${data.error}`);
+                }
+            } catch (error) {
+                console.error('Error updating config:', error);
+                alert('Error updating configuration. Check console for details.');
+            }
+        });
+
+        // Close modal on outside click
+        window.onclick = function(event) {
+            const configModal = document.getElementById('configModal');
+            if (event.target === configModal) {
+                closeConfigModal();
+            }
+            const securityModal = document.getElementById('securityModal');
+            if (event.target === securityModal) {
+                closeSecurityModal();
+            }
+            const debugModal = document.getElementById('debugModal');
+            if (event.target === debugModal) {
+                closeDebugInspector();
+            }
+            const mapModal = document.getElementById('mapModal');
+            if (event.target === mapModal) {
+                closeFullScreenMap();
+            }
+        }
+
+        // Recover to a specific message
+        async function recoverToMessage(sequenceNumber) {
+            if (!confirm(`Are you sure you want to recover to message sequence ${sequenceNumber}? This will remove all messages and state changes after this point.`)) {
+                return;
+            }
+            
+            const input = document.getElementById('actionInput');
+            const btn = document.getElementById('submitBtn');
+            
+            input.disabled = true;
+            btn.disabled = true;
+            document.body.classList.add('loading');
+            clearError();
+            
+            try {
+                const response = await fetch(`${API_BASE}/games/${gameId}/recover`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        sequence_number: sequenceNumber,
+                    }),
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentState = data.state;
+                    renderMessages(currentState.message_history.messages);
+                    updateGameStatus(currentState);
+                    // Update full-screen map if it's open
+                    const mapModal = document.getElementById('mapModal');
+                    if (mapModal && mapModal.classList.contains('show')) {
+                        renderFullScreenMap(currentState);
+                    }
+                    alert('Game state recovered successfully!');
+                } else {
+                    showError(`Error: ${data.error || 'Unknown error'}`);
+                }
+            } catch (error) {
+                console.error('Error recovering state:', error);
+                showError(`Error recovering state: ${error.message}`);
+            } finally {
+                input.disabled = false;
+                btn.disabled = false;
+                document.body.classList.remove('loading');
+            }
+        }
+
+        // Initialize
+        if (gameId) {
+            loadState();
+        } else {
+            showError('No game ID provided in URL');
+        }
+    </script>
+</body>
+</html>
+

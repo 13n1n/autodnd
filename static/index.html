@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoDnD - Create Game</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #1e1e2e 0%, #2d2d44 100%);
+            color: #e0e0e0;
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            color: #fff;
+            margin-bottom: 0.5rem;
+        }
+
+        .header p {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 1.1rem;
+        }
+
+        .game-creation {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 3rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .game-creation h2 {
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+            color: #fff;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #e0e0e0;
+            font-weight: 500;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 0.75rem;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            color: #e0e0e0;
+            font-size: 1rem;
+            font-family: inherit;
+        }
+
+        .form-group textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #4a90e2;
+            box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+        }
+
+        .form-group small {
+            display: block;
+            margin-top: 0.5rem;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.9em;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        @media (max-width: 768px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .btn {
+            padding: 0.75rem 2rem;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: #4a90e2;
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: #357abd;
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .games-list {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 12px;
+            padding: 2rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .games-list h2 {
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+            color: #fff;
+        }
+
+        .games-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1rem;
+        }
+
+        .game-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 1.5rem;
+            transition: all 0.2s;
+        }
+
+        .game-card:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(74, 144, 226, 0.5);
+            transform: translateY(-2px);
+        }
+
+        .game-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+        }
+
+        .game-card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 0.5rem;
+        }
+
+        .game-card-id {
+            font-size: 0.8em;
+            color: rgba(255, 255, 255, 0.5);
+            font-family: monospace;
+        }
+
+        .game-card-info {
+            margin-bottom: 1rem;
+            font-size: 0.9em;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .game-card-info-item {
+            margin-bottom: 0.5rem;
+        }
+
+        .game-card-info-item strong {
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .game-card-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .btn-small {
+            padding: 0.5rem 1rem;
+            font-size: 0.9rem;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-small-primary {
+            background: #4a90e2;
+            color: white;
+            flex: 1;
+        }
+
+        .btn-small-primary:hover {
+            background: #357abd;
+        }
+
+        .btn-small-danger {
+            background: rgba(255, 0, 0, 0.2);
+            color: #ff6b6b;
+            border: 1px solid rgba(255, 0, 0, 0.3);
+        }
+
+        .btn-small-danger:hover {
+            background: rgba(255, 0, 0, 0.3);
+            border-color: rgba(255, 0, 0, 0.5);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .empty-state-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .loading {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+
+        .error-message {
+            background: rgba(255, 0, 0, 0.2);
+            border: 1px solid rgba(255, 0, 0, 0.5);
+            border-radius: 6px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            color: #ff6b6b;
+        }
+
+        .success-message {
+            background: rgba(0, 255, 0, 0.2);
+            border: 1px solid rgba(0, 255, 0, 0.5);
+            border-radius: 6px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            color: #6bff6b;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8em;
+            font-weight: 500;
+        }
+
+        .badge-difficulty-easy {
+            background: rgba(0, 255, 0, 0.2);
+            color: #6bff6b;
+        }
+
+        .badge-difficulty-normal {
+            background: rgba(74, 144, 226, 0.2);
+            color: #4a90e2;
+        }
+
+        .badge-difficulty-hard {
+            background: rgba(255, 165, 0, 0.2);
+            color: #ffa500;
+        }
+
+        .badge-difficulty-nightmare {
+            background: rgba(255, 0, 0, 0.2);
+            color: #ff6b6b;
+        }
+
+        .btn-collapsible {
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #e0e0e0;
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            border-radius: 6px;
+            font-size: 0.95rem;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-collapsible:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: rgba(74, 144, 226, 0.5);
+        }
+
+        #llmSettingsSection {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-top: 1rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>AutoDnD</h1>
+            <p>Create and manage your D&D games</p>
+        </div>
+
+        <div id="messageContainer"></div>
+
+        <div class="game-creation">
+            <h2>Create New Game</h2>
+            <form id="gameForm" onsubmit="createGame(event)">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="difficulty">Difficulty</label>
+                        <select id="difficulty" name="difficulty" required>
+                            <option value="easy">Easy</option>
+                            <option value="normal" selected>Normal</option>
+                            <option value="hard">Hard</option>
+                            <option value="nightmare">Nightmare</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="rules_variant">Rules Variant</label>
+                        <select id="rules_variant" name="rules_variant" required>
+                            <option value="standard" selected>Standard</option>
+                            <option value="simplified">Simplified</option>
+                            <option value="custom">Custom</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="game_master_prompt">Game Master Prompt (Optional)</label>
+                    <textarea id="game_master_prompt" name="game_master_prompt" placeholder="Customize the game master's personality, style, or setting. For example: &quot;You are a dark and mysterious dungeon master. The world is filled with shadows and ancient secrets.&quot;"></textarea>
+                    <small>Describe how you want the game master to behave or what setting/world the game should take place in.</small>
+                </div>
+                
+                <div class="form-group">
+                    <button type="button" class="btn-collapsible" onclick="toggleLLMSettings()">
+                        <span id="llmSettingsToggle">▶</span> LLM Settings (Optional)
+                    </button>
+                    <small>Override default LLM settings for this game. Leave empty to use global defaults.</small>
+                </div>
+                
+                <div id="llmSettingsSection" style="display: none;">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="llm_provider">Provider</label>
+                            <select id="llm_provider" name="llm_provider">
+                                <option value="">Use Default</option>
+                                <option value="openai">OpenAI</option>
+                                <option value="ollama">Ollama</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="llm_model">Model</label>
+                            <input type="text" id="llm_model" name="llm_model" placeholder="e.g., gpt-4, llama3">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="llm_base_url">Base URL (Optional)</label>
+                            <input type="text" id="llm_base_url" name="llm_base_url" placeholder="Custom API endpoint">
+                        </div>
+                        <div class="form-group">
+                            <label for="llm_api_key">API Key (Optional)</label>
+                            <input type="password" id="llm_api_key" name="llm_api_key" placeholder="API key">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="llm_temperature">Temperature (0.0 - 2.0)</label>
+                            <input type="number" id="llm_temperature" name="llm_temperature" min="0" max="2" step="0.1" placeholder="0.7">
+                        </div>
+                        <div class="form-group">
+                            <label for="llm_max_tokens">Max Tokens (Optional)</label>
+                            <input type="number" id="llm_max_tokens" name="llm_max_tokens" min="1" placeholder="Leave empty for default">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="llm_timeout">Timeout (seconds)</label>
+                        <input type="number" id="llm_timeout" name="llm_timeout" min="1" placeholder="60">
+                    </div>
+                </div>
+                
+                <button type="submit" class="btn btn-primary" id="createBtn">Create Game</button>
+            </form>
+        </div>
+
+        <div class="games-list">
+            <h2>Your Games</h2>
+            <div id="gamesContainer">
+                <div class="empty-state">
+                    <div class="empty-state-icon">🎲</div>
+                    <p>No games yet. Create one above to get started!</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Get API base URL from current origin
+        const API_BASE = `${window.location.origin}/api`;
+
+        function showMessage(message, type = 'error') {
+            const container = document.getElementById('messageContainer');
+            const className = type === 'error' ? 'error-message' : 'success-message';
+            container.innerHTML = `<div class="${className}">${message}</div>`;
+            setTimeout(() => {
+                container.innerHTML = '';
+            }, 5000);
+        }
+
+        function toggleLLMSettings() {
+            const section = document.getElementById('llmSettingsSection');
+            const toggle = document.getElementById('llmSettingsToggle');
+            if (section.style.display === 'none') {
+                section.style.display = 'block';
+                toggle.textContent = '▼';
+            } else {
+                section.style.display = 'none';
+                toggle.textContent = '▶';
+            }
+        }
+
+        async function createGame(event) {
+            event.preventDefault();
+            
+            const form = event.target;
+            const btn = document.getElementById('createBtn');
+            const formData = new FormData(form);
+            
+            // Build LLM config if any LLM fields are provided
+            const llmProvider = formData.get('llm_provider');
+            const llmModel = formData.get('llm_model');
+            const llmBaseUrl = formData.get('llm_base_url');
+            const llmApiKey = formData.get('llm_api_key');
+            const llmTemperature = formData.get('llm_temperature');
+            const llmMaxTokens = formData.get('llm_max_tokens');
+            const llmTimeout = formData.get('llm_timeout');
+            
+            let llmConfig = null;
+            if (llmProvider || llmModel || llmBaseUrl || llmApiKey || llmTemperature || llmMaxTokens || llmTimeout) {
+                llmConfig = {};
+                if (llmProvider) llmConfig.provider = llmProvider;
+                if (llmModel) llmConfig.model = llmModel;
+                if (llmBaseUrl) llmConfig.base_url = llmBaseUrl;
+                if (llmApiKey) llmConfig.api_key = llmApiKey;
+                if (llmTemperature) llmConfig.temperature = parseFloat(llmTemperature);
+                if (llmMaxTokens) llmConfig.max_tokens = parseInt(llmMaxTokens);
+                if (llmTimeout) llmConfig.timeout = parseInt(llmTimeout);
+            }
+            
+            const gameData = {
+                difficulty: formData.get('difficulty'),
+                rules_variant: formData.get('rules_variant'),
+                game_master_prompt: formData.get('game_master_prompt') || null,
+                llm_config: llmConfig,
+            };
+
+            btn.disabled = true;
+            btn.textContent = 'Creating...';
+            
+            try {
+                const response = await fetch(`${API_BASE}/games`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(gameData),
+                });
+
+                const data = await response.json();
+
+                if (data.success && data.game_id) {
+                    showMessage('Game created successfully!', 'success');
+                    form.reset();
+                    loadGames();
+                    // Redirect to game page after a short delay
+                    setTimeout(() => {
+                        window.location.href = `/game/${data.game_id}`;
+                    }, 1000);
+                } else {
+                    showMessage(`Error: ${data.error || 'Failed to create game'}`);
+                }
+            } catch (error) {
+                console.error('Error creating game:', error);
+                showMessage(`Error creating game: ${error.message}`);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Create Game';
+            }
+        }
+
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleString();
+        }
+
+        function getDifficultyBadgeClass(difficulty) {
+            return `badge badge-difficulty-${difficulty}`;
+        }
+
+        function renderGames(games) {
+            const container = document.getElementById('gamesContainer');
+            
+            if (games.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🎲</div>
+                        <p>No games yet. Create one above to get started!</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="games-grid">
+                    ${games.map(game => `
+                        <div class="game-card">
+                            <div class="game-card-header">
+                                <div>
+                                    <div class="game-card-title">${game.title || 'Game'}</div>
+                                    <div class="game-card-id">${game.game_id.substring(0, 8)}...</div>
+                                </div>
+                                <span class="${getDifficultyBadgeClass(game.metadata.difficulty)}">${game.metadata.difficulty}</span>
+                            </div>
+                            <div class="game-card-info">
+                                <div class="game-card-info-item">
+                                    <strong>Created:</strong> ${formatDate(game.created_at)}
+                                </div>
+                                <div class="game-card-info-item">
+                                    <strong>Version:</strong> ${game.state_version}
+                                </div>
+                                <div class="game-card-info-item">
+                                    <strong>Players:</strong> ${game.players.length}
+                                </div>
+                                <div class="game-card-info-item">
+                                    <strong>Rules:</strong> ${game.metadata.rules_variant}
+                                </div>
+                            </div>
+                            <div class="game-card-actions">
+                                <button class="btn-small btn-small-primary" onclick="openGame('${game.game_id}')">
+                                    Open Game
+                                </button>
+                                <button class="btn-small btn-small-danger" onclick="deleteGame('${game.game_id}')" title="Delete game and all state files">
+                                    Delete
+                                </button>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        function openGame(gameId) {
+            window.location.href = `/game/${gameId}`;
+        }
+
+        async function deleteGame(gameId) {
+            // Confirm deletion
+            if (!confirm('Are you sure you want to delete this game? This will permanently delete the game and all its state files. This action cannot be undone.')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/games/${gameId}`, {
+                    method: 'DELETE',
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    showMessage('Game deleted successfully!', 'success');
+                    loadGames(); // Refresh the games list
+                } else {
+                    showMessage(`Error: ${data.error || 'Failed to delete game'}`);
+                }
+            } catch (error) {
+                console.error('Error deleting game:', error);
+                showMessage(`Error deleting game: ${error.message}`);
+            }
+        }
+
+        async function loadGames() {
+            try {
+                const response = await fetch(`${API_BASE}/games`);
+                if (!response.ok) {
+                    throw new Error('Failed to load games');
+                }
+                const data = await response.json();
+                renderGames(data.games || []);
+            } catch (error) {
+                console.error('Error loading games:', error);
+                showMessage(`Error loading games: ${error.message}`);
+            }
+        }
+
+        // Load games on page load
+        loadGames();
+        
+        // Refresh games list every 10 seconds
+        setInterval(loadGames, 10000);
+    </script>
+</body>
+</html>
